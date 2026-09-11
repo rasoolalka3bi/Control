@@ -16,6 +16,7 @@ import re
 import socket
 import uuid
 import threading
+import time
 from urllib.parse import quote
 
 app = Flask(__name__, static_folder=None)
@@ -528,6 +529,7 @@ def api_devices_activate(device_id):
 # كل البحث وفحص التكرار والمطابقة يتم على user_id فقط، أما uid فيبقى
 # داخليًا لتحديد السجل نفسه عند التحديث.
 
+IMPORT_TIMEOUT = 20           # الكتابة أبطأ من القراءة، خصوصًا مع القوالب
 MAX_EMPLOYEE_NUMBER_BYTES = 24   # سعة حقل user_id في سجل المستخدم (72 بايت)
 MAX_DEVICE_UID = 65535           # أكبر رقم داخلي ممكن في بروتوكول ZK
 
@@ -535,9 +537,26 @@ EMPLOYEES_FILE_FORMAT = "zkcontrol-employees"
 EMPLOYEES_FILE_VERSION = 1
 
 
-def _zk_for(device):
-    return ZK(device["ip"], port=4370, timeout=ZK_TIMEOUT,
-              password=int(device.get("comm_key", 0) or 0), force_udp=True, ommit_ping=True)
+def _zk_for(device, force_udp=True, timeout=None):
+    return ZK(device["ip"], port=4370, timeout=timeout or ZK_TIMEOUT,
+              password=int(device.get("comm_key", 0) or 0), force_udp=force_udp, ommit_ping=True)
+
+
+def connect_for_writing(device):
+    """اتصال مخصص لعمليات الكتابة (الاستيراد): TCP أولًا ثم UDP احتياطًا.
+
+    قالب البصمة حزمة كبيرة نسبيًا؛ وUDP لا يضمن وصولها ولا يُبلّغ عن ضياعها،
+    فتنتهي العملية "بنجاح" بينما الجهاز لم يستلم القالب (أو استلم جزءًا منه
+    فيُسجَّل قالب لا يطابق أحدًا). TCP يضمن الوصول كاملًا أو يعطي خطأ صريحًا.
+    يرجع (الاتصال، اسم البروتوكول المستخدم)."""
+    last_error = None
+    for use_udp in (False, True):
+        try:
+            conn = _zk_for(device, force_udp=use_udp, timeout=IMPORT_TIMEOUT).connect()
+            return conn, ("UDP" if use_udp else "TCP")
+        except Exception as e:
+            last_error = e
+    raise last_error
 
 
 def normalize_employee_number(value):
@@ -910,16 +929,74 @@ def api_employees_import_check():
     return jsonify({"success": True, "existing": existing, "device_name": device["name"], "hardware": hardware})
 
 
-def _run_import_job(job_id, device, employees, overwrite, skip_fingers=False):
-    from zk.user import User
+def _fingers_from_export(uid, exported):
+    """يبني كائنات البصمات من الملف المُصدَّر (القالب محفوظ نصًا ست عشريًا)."""
     from zk.finger import Finger
+    fingers = []
+    for f in exported or []:
+        tpl = f.get("template")
+        if not tpl:
+            continue
+        fingers.append(Finger(uid, int(f.get("fid", 0)), int(f.get("valid", 1)), bytes.fromhex(tpl)))
+    return fingers
+
+
+def _templates_on_device(conn, uid):
+    """{fid: bytes} للقوالب الموجودة فعليًا على الجهاز لهذا الرقم الداخلي."""
+    result = {}
+    for t in conn.get_templates():
+        if t.uid == uid:
+            result[t.fid] = bytes(t.template)
+    return result
+
+
+def _write_fingers_verified(conn, user_obj, fingers):
+    """يكتب القوالب ثم يقرأها من الجهاز ويقارنها بايتًا ببايت.
+
+    هذا التحقق ضروري: الكتابة قد "تنجح" من طرف التطبيق بينما لا يصل للجهاز
+    شيء، أو يصل قالب ناقص يبدو مسجّلًا لكنه لا يطابق صاحبه عند البصم.
+    يعيد المحاولة مرة واحدة، ويرجع (عدد المؤكَّد، رسالة الخطأ أو None)."""
+    attempts = 2
+    last_missing = []
+    for attempt in range(attempts):
+        conn.save_user_template(user_obj, fingers)
+        try:
+            conn.refresh_data()
+        except Exception:
+            pass
+
+        on_device = _templates_on_device(conn, user_obj.uid)
+        last_missing = [f.fid for f in fingers
+                        if on_device.get(f.fid) != bytes(f.template)]
+        if not last_missing:
+            return len(fingers), None
+        if attempt + 1 < attempts:
+            time.sleep(0.5)
+
+    confirmed = len(fingers) - len(last_missing)
+    return confirmed, f"لم تُحفظ {len(last_missing)} بصمة على الجهاز بشكل صحيح"
+
+
+def _run_import_job(job_id, device, employees, overwrite, skip_fingers=False, restart_device=False):
+    from zk.user import User
 
     job = _import_jobs[job_id]
     try:
         with get_device_lock(device["ip"]):
             conn = None
+            device_disabled = False
             try:
-                conn = _zk_for(device).connect()
+                conn, protocol = connect_for_writing(device)
+                job["protocol"] = protocol
+
+                # أجهزة ZK قد تتجاهل الكتابة بصمت أثناء انشغالها باستقبال
+                # البصم؛ تعطيلها مؤقتًا يجعل الكتابة موثوقة
+                try:
+                    conn.disable_device()
+                    device_disabled = True
+                except Exception:
+                    pass
+
                 users = conn.get_users()
                 index = index_by_employee_number(users)
                 next_uid = next_free_uid(users)
@@ -955,16 +1032,14 @@ def _run_import_job(job_id, device, employees, overwrite, skip_fingers=False):
                         conn.set_user(uid=uid, name=name, privilege=privilege, password=password,
                                       group_id=group_id, user_id=number, card=card)
 
-                        fingers = []
-                        for f in ([] if skip_fingers else emp.get("fingers") or []):
-                            tpl = f.get("template")
-                            if not tpl:
-                                continue
-                            fingers.append(Finger(uid, int(f.get("fid", 0)), int(f.get("valid", 1)), bytes.fromhex(tpl)))
+                        fingers = [] if skip_fingers else _fingers_from_export(uid, emp.get("fingers"))
                         if fingers:
                             user_obj = User(uid, name, privilege, password, group_id, number, card)
-                            conn.save_user_template(user_obj, fingers)
-                            job["fingers"] += len(fingers)
+                            confirmed, finger_error = _write_fingers_verified(conn, user_obj, fingers)
+                            job["fingers"] += confirmed
+                            job["fingers_sent"] += len(fingers)
+                            if finger_error:
+                                job["finger_failed"].append({"user_id": number, "reason": finger_error})
 
                         if existing:
                             job["updated"] += 1
@@ -981,8 +1056,29 @@ def _run_import_job(job_id, device, employees, overwrite, skip_fingers=False):
                     conn.refresh_data()
                 except Exception:
                     pass  # تحديث بيانات الجهاز تحسين إضافي فقط
+
+                # بعض الطرازات لا تُحمّل القوالب الجديدة في ذاكرة المطابقة
+                # إلا بعد إعادة التشغيل، فتبدو البصمة مسجّلة ولا تعمل
+                if restart_device and job["fingers"] > 0:
+                    try:
+                        if device_disabled:
+                            try:
+                                conn.enable_device()
+                            except Exception:
+                                pass
+                            device_disabled = False
+                        conn.restart()
+                        job["restarted"] = True
+                        conn = None  # الجهاز يقطع الجلسة فور إعادة التشغيل
+                    except Exception as e:
+                        job["restart_error"] = str(e)
             finally:
                 if conn:
+                    if device_disabled:
+                        try:
+                            conn.enable_device()
+                        except Exception:
+                            pass
                     conn.disconnect()
         job["status"] = "done"
     except Exception as e:
@@ -990,8 +1086,9 @@ def _run_import_job(job_id, device, employees, overwrite, skip_fingers=False):
         job["message"] = f"تعذّر الاتصال: {e}"
 
     summary = (f"إضافة {job['added']}، تحديث {job['updated']}، تخطي {job['skipped']}، "
-               f"فشل {len(job['failed'])}، بصمات {job['fingers']}")
-    mark = "✓" if job["status"] == "done" and not job["failed"] else "✕"
+               f"فشل {len(job['failed'])}، بصمات مؤكَّدة {job['fingers']} من {job['fingers_sent']}"
+               f" ({job.get('protocol') or '—'})")
+    mark = "✓" if job["status"] == "done" and not job["failed"] and not job["finger_failed"] else "✕"
     log_action(device["name"], "استيراد الموظفين", f"{mark} {summary}" + (f" — {job['message']}" if job.get("message") else ""))
 
 
@@ -1013,12 +1110,15 @@ def api_employees_import_start():
     job_id = str(uuid.uuid4())
     _import_jobs[job_id] = {
         "status": "running", "total": len(employees), "done": 0,
-        "added": 0, "updated": 0, "skipped": 0, "fingers": 0,
-        "failed": [], "message": "", "created": now, "device_name": device["name"],
+        "added": 0, "updated": 0, "skipped": 0, "fingers": 0, "fingers_sent": 0,
+        "failed": [], "finger_failed": [], "message": "", "protocol": None,
+        "restarted": False, "restart_error": "",
+        "created": now, "device_name": device["name"],
     }
     threading.Thread(target=_run_import_job,
                      args=(job_id, device, employees, bool(data.get('overwrite', False)),
-                           bool(data.get('skip_fingers', False))),
+                           bool(data.get('skip_fingers', False)),
+                           bool(data.get('restart_device', False))),
                      daemon=True).start()
     return jsonify({"success": True, "job_id": job_id})
 
