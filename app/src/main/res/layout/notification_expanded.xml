@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingBottom="8dp">
+
+        <View
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:background="@drawable/notif_icon_badge"
+            android:layout_marginEnd="10dp" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="إدارة أجهزة البصمة"
+                android:textSize="11.5sp"
+                android:textColor="#9A9A9E" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="حالة الأجهزة"
+                android:textSize="13sp"
+                android:textColor="#F2F2F2"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/deviceListContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0.5dp"
+        android:background="#2C2C2F"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="8dp" />
+
+    <Button
+        android:id="@+id/openAppButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="فتح التطبيق"
+        android:textSize="12.5sp"
+        android:textColor="#E8E8E8"
+        android:background="#2A2B2E"
+        android:minHeight="0dp"
+        android:paddingTop="9dp"
+        android:paddingBottom="9dp" />
+
+</LinearLayout>

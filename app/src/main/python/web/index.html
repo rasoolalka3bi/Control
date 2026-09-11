@@ -1,0 +1,1954 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>إدارة أجهزة البصمة</title>
+<style>
+:root {
+    --bg: #f0f2f5;
+    --card: #ffffff;
+    --text: #1a1a1a;
+    --text-dim: #6b7280;
+    --border: #e5e7eb;
+    --primary: #1a73e8;
+    --primary-dark: #1557b0;
+    --success: #137333;
+    --danger: #c5221f;
+    --warning: #b06000;
+    --purple: #6f42c1;
+    --shadow: 0 2px 10px rgba(0,0,0,0.06);
+}
+html.dark {
+    --bg: #10131a;
+    --card: #1a1f2b;
+    --text: #eef1f6;
+    --text-dim: #9aa4b2;
+    --border: #2a3040;
+    --shadow: 0 2px 10px rgba(0,0,0,0.4);
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Tahoma, Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overscroll-behavior: none;
+    transition: background .2s, color .2s;
+}
+.app { max-width: 520px; margin: 0 auto; min-height: 100vh; position: relative; }
+
+/* ===== الترويسة ===== */
+.topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 16px 8px;
+}
+.topbar h1 { font-size: 17px; margin: 0; font-weight: 700; }
+.icon-btn {
+    width: 40px; height: 40px; border-radius: 50%; border: none;
+    background: var(--card); display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--shadow); position: relative; cursor: pointer;
+}
+.icon-btn svg { width: 20px; height: 20px; stroke: var(--text); }
+.badge {
+    position: absolute; top: -2px; left: -2px; background: var(--danger); color: #fff;
+    font-size: 10px; font-weight: 700; min-width: 16px; height: 16px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; padding: 0 3px;
+}
+
+/* ===== الكاروسيل ===== */
+.carousel-wrap { padding: 4px 0 10px; }
+.carousel {
+    display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 12px;
+    padding: 4px 16px 8px; scrollbar-width: none;
+}
+.carousel::-webkit-scrollbar { display: none; }
+.device-card {
+    scroll-snap-align: center; flex: 0 0 88%; background: linear-gradient(135deg, var(--primary), #4a90f0);
+    border-radius: 18px; padding: 18px 20px; color: #fff; box-shadow: var(--shadow); min-height: 118px;
+    display: flex; flex-direction: column; justify-content: space-between;
+}
+.device-card.offline { background: linear-gradient(135deg, #6b7280, #8b95a5); }
+.device-card .row1 { display: flex; justify-content: space-between; align-items: flex-start; }
+.device-card .dname { font-size: 16px; font-weight: 700; }
+.device-card .dip { font-size: 12px; opacity: .85; direction: ltr; text-align: right; }
+.status-pill {
+    display: flex; align-items: center; gap: 5px; font-size: 11px; background: rgba(255,255,255,.18);
+    padding: 3px 9px; border-radius: 20px; font-weight: 600;
+}
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; }
+.status-pill.off .status-dot { background: #f87171; }
+.device-card .dtime { font-size: 22px; font-weight: 700; direction: ltr; text-align: right; margin-top: 8px; }
+.device-card .ddate { font-size: 12px; opacity: .85; direction: ltr; text-align: right; }
+.device-card .lastseen { font-size: 11px; opacity: .8; margin-top: 2px; }
+.dots { display: flex; justify-content: center; gap: 6px; padding-bottom: 4px; }
+.dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--border); }
+.dots span.active { background: var(--primary); width: 16px; border-radius: 4px; }
+
+.empty-state {
+    text-align: center; padding: 60px 30px; color: var(--text-dim);
+}
+.empty-state svg { width: 64px; height: 64px; stroke: var(--text-dim); margin-bottom: 14px; }
+.empty-state h3 { color: var(--text); margin: 0 0 6px; }
+.empty-state button { margin-top: 16px; }
+
+/* ===== شبكة الخدمات ===== */
+.services-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 8px 16px 20px;
+}
+/* خط كوفي محلي (بدون اعتماد على الإنترنت) - راجع ملاحظة README حول إضافة
+   ملف الخط الفعلي في app/src/main/python/web/fonts/ReemKufi-Bold.ttf */
+@font-face {
+    font-family: 'ReemKufiLocal';
+    src: url('/static/fonts/ReemKufi-Bold.ttf') format('truetype');
+    font-weight: 700;
+    font-display: swap;
+}
+
+.credit-footer {
+    display: flex; align-items: center; justify-content: center;
+    padding: 14px 0 26px; cursor: pointer; perspective: 700px;
+}
+.credit-name-3d {
+    display: inline-block;
+    font-family: 'ReemKufiLocal', 'Noto Kufi Arabic', sans-serif;
+    font-size: 19px;
+    background: linear-gradient(145deg, var(--primary), #6f42c1);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(1px 1px 0 rgba(0,0,0,.15)) drop-shadow(2px 3px 4px rgba(0,0,0,.22));
+}
+.credit-name-3d.spin { animation: credit-tumble 1.6s ease-in-out; }
+@keyframes credit-tumble {
+    0%   { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+    22%  { transform: rotateX(16deg) rotateY(170deg) rotateZ(-5deg); }
+    50%  { transform: rotateX(-12deg) rotateY(360deg) rotateZ(4deg); }
+    78%  { transform: rotateX(10deg) rotateY(550deg) rotateZ(-3deg); }
+    100% { transform: rotateX(0deg) rotateY(720deg) rotateZ(0deg); }
+}
+.service-tile {
+    background: var(--card); border-radius: 16px; padding: 16px 8px; text-align: center;
+    box-shadow: var(--shadow); cursor: pointer; border: none; color: var(--text);
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.service-tile .tile-icon {
+    width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+}
+.service-tile .tile-icon svg { width: 22px; height: 22px; stroke: #fff; }
+.service-tile span { font-size: 12.5px; font-weight: 600; }
+
+/* ===== الشاشات (SPA) ===== */
+.screen {
+    position: fixed; inset: 0; background: var(--bg); z-index: 50;
+    transform: translateX(100%); transition: transform .25s ease; overflow-y: auto;
+    max-width: 520px; margin: 0 auto;
+}
+.screen.open { transform: translateX(0); }
+.screen-header {
+    display: flex; align-items: center; gap: 12px; padding: 16px; position: sticky; top: 0;
+    background: var(--bg); border-bottom: 1px solid var(--border); z-index: 5;
+}
+.screen-header h2 { font-size: 16px; margin: 0; }
+.back-btn { background: none; border: none; padding: 6px; cursor: pointer; }
+.back-btn svg { width: 22px; height: 22px; stroke: var(--text); }
+.screen-body { padding: 16px; }
+
+/* ===== عناصر عامة ===== */
+.card {
+    background: var(--card); border-radius: 16px; padding: 16px; box-shadow: var(--shadow); margin-bottom: 14px;
+}
+.card h3 { margin: 0 0 12px; font-size: 14.5px; display: flex; align-items: center; gap: 8px; }
+.card h3 svg { width: 17px; height: 17px; stroke: var(--primary); }
+label { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-dim); margin: 10px 0 5px; }
+input, select {
+    width: 100%; padding: 11px; border-radius: 10px; border: 1.5px solid var(--border);
+    background: var(--bg); color: var(--text); font-size: 14.5px;
+}
+select option.offline-opt { color: var(--danger); }
+button.btn {
+    width: 100%; padding: 12px; border-radius: 10px; border: none; background: var(--primary);
+    color: #fff; font-weight: 700; font-size: 14.5px; margin-top: 12px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+button.btn.secondary { background: var(--text-dim); }
+button.btn.success { background: var(--success); }
+button.btn.danger { background: var(--danger); }
+button.btn.purple { background: var(--purple); }
+button.btn.outline { background: transparent; border: 1.5px solid var(--border); color: var(--text); }
+button.btn:disabled { opacity: .55; }
+.btn-row { display: flex; gap: 8px; }
+.btn-row .btn { margin-top: 8px; }
+.spinner {
+    width: 15px; height: 15px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff;
+    border-radius: 50%; animation: spin .6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.list-row {
+    display: flex; justify-content: space-between; align-items: center; padding: 12px;
+    border-radius: 12px; background: var(--bg); margin-bottom: 8px; border: 1px solid var(--border);
+    gap: 10px;
+}
+.list-row.active-row { border-color: var(--success); background: rgba(19,115,51,.08); }
+.list-row .info b { display: block; font-size: 14px; }
+.list-row .info span { font-size: 11.5px; color: var(--text-dim); }
+.row-actions { display: flex; gap: 6px; }
+.row-actions button {
+    padding: 7px 11px; border-radius: 8px; border: none; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.tag { font-size: 10.5px; padding: 2px 7px; border-radius: 10px; font-weight: 700; }
+.tag.online { background: rgba(19,115,51,.15); color: var(--success); }
+.tag.offline { background: rgba(197,34,31,.15); color: var(--danger); }
+
+.tabs { display: flex; background: var(--border); border-radius: 10px; padding: 3px; margin-bottom: 14px; }
+.tabs button {
+    flex: 1; padding: 9px; border: none; background: transparent; border-radius: 8px;
+    font-size: 13px; font-weight: 700; color: var(--text-dim); cursor: pointer;
+}
+.tabs button.active { background: var(--card); color: var(--primary); }
+
+.result-line { font-size: 12.5px; padding: 8px 4px; border-bottom: 1px solid var(--border); direction: ltr; text-align: right; }
+.result-box { max-height: 320px; overflow-y: auto; margin-top: 8px; }
+.card-note { font-size: 12px; color: var(--text-dim); line-height: 1.7; margin: 6px 0 0; }
+.progress-track { height: 6px; background: var(--border); border-radius: 6px; overflow: hidden; margin-top: 10px; }
+.progress-fill { height: 100%; width: 0; background: var(--success); transition: width .3s; }
+.job-status { font-size: 12.5px; margin-top: 10px; line-height: 1.7; }
+
+.time-chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.time-chip {
+    background: var(--bg); border: 1.5px solid var(--border); border-radius: 20px; padding: 6px 12px;
+    font-size: 13px; display: flex; align-items: center; gap: 6px;
+}
+.time-chip button { background: none; border: none; color: var(--danger); font-weight: 900; cursor: pointer; padding: 0; }
+
+.switch-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; }
+.switch { position: relative; width: 44px; height: 26px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+    position: absolute; inset: 0; background: var(--border); border-radius: 20px; cursor: pointer; transition: .2s;
+}
+.slider:before {
+    content: ""; position: absolute; height: 20px; width: 20px; left: 3px; bottom: 3px;
+    background: #fff; border-radius: 50%; transition: .2s;
+}
+.switch input:checked + .slider { background: var(--primary); }
+.switch input:checked + .slider:before { transform: translateX(18px); }
+
+.empty-hint { text-align: center; color: var(--text-dim); font-size: 12.5px; padding: 14px; }
+
+/* ===== توست وتراجع ===== */
+.toast-wrap {
+    position: fixed; bottom: 22px; left: 0; right: 0; display: flex; flex-direction: column;
+    align-items: center; gap: 8px; z-index: 200; pointer-events: none;
+}
+.toast {
+    background: #1f2937; color: #fff; padding: 11px 18px; border-radius: 10px; font-size: 13px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.25); max-width: 90%; text-align: center;
+    animation: toast-in .25s ease;
+}
+.toast.success { background: var(--success); }
+.toast.error { background: var(--danger); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+.snackbar {
+    background: #1f2937; color: #fff; padding: 12px 16px; border-radius: 10px; font-size: 13px;
+    display: flex; align-items: center; justify-content: space-between; gap: 14px; pointer-events: all;
+    max-width: 90%; box-shadow: 0 4px 14px rgba(0,0,0,.25);
+}
+.snackbar button { background: none; border: none; color: #7dd3fc; font-weight: 700; cursor: pointer; font-size: 13px; }
+
+/* ===== نافذة تأكيد مخصصة ===== */
+.modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 300;
+    display: flex; align-items: flex-end; justify-content: center;
+}
+.modal-sheet {
+    background: var(--card); width: 100%; max-width: 520px; border-radius: 18px 18px 0 0;
+    padding: 22px 20px 26px; animation: sheet-up .2s ease;
+}
+@keyframes sheet-up { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.modal-sheet h3 { margin: 0 0 8px; font-size: 15px; }
+.modal-sheet p { margin: 0 0 18px; font-size: 13.5px; color: var(--text-dim); }
+.modal-sheet.warn h3 { color: var(--warning); }
+.scope-option {
+    display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 12px;
+    border: 1.5px solid var(--border); margin-bottom: 8px; cursor: pointer; font-size: 14px; font-weight: 600;
+    color: var(--text); margin-top: 0;
+}
+.scope-option input { width: auto; margin: 0; accent-color: var(--primary); }
+.scope-option:has(input:checked) { border-color: var(--primary); }
+.scope-numbers {
+    width: 100%; min-height: 110px; padding: 11px; border-radius: 10px; border: 1.5px solid var(--border);
+    background: var(--bg); color: var(--text); font-size: 14.5px; resize: vertical; direction: ltr; text-align: left;
+    font-family: inherit;
+}
+.scope-error { color: var(--danger); font-size: 12.5px; min-height: 18px; margin-top: 6px; }
+.missing-list {
+    display: block; max-height: 110px; overflow-y: auto; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 8px 10px; margin-top: 6px; direction: ltr; text-align: left;
+    color: var(--danger); font-size: 13px; line-height: 1.8;
+}
+
+/* ===== إشعارات ===== */
+.notif-row { padding: 12px; border-radius: 12px; background: var(--bg); border: 1px solid var(--border); margin-bottom: 8px; }
+.notif-row .ntitle { font-size: 13px; font-weight: 700; }
+.notif-row .nts { font-size: 11px; color: var(--text-dim); margin-top: 3px; }
+
+.search-box { position: relative; margin-bottom: 10px; }
+.search-box svg { position: absolute; top: 12px; right: 12px; width: 16px; height: 16px; stroke: var(--text-dim); }
+.search-box input { padding-right: 34px; }
+</style>
+</head>
+<body>
+
+<!-- ===== مجمع أيقونات SVG ===== -->
+<svg style="display:none">
+<symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+<symbol id="i-sync" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/></symbol>
+<symbol id="i-export" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-devices" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
+<symbol id="i-history" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5M3.05 13a9 9 0 1 0 2.13-6.36L3 8"/><path d="M12 7v5l4 2"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+<symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+<symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+<symbol id="i-building" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4M10 10h4M10 14h4M10 18h4"/></symbol>
+<symbol id="i-share" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98M15.41 6.51 8.59 10.49"/></symbol>
+</svg>
+
+<div class="app" id="app">
+
+    <!-- ===== الصفحة الرئيسية ===== -->
+    <div id="home">
+        <div class="topbar">
+            <button class="icon-btn" onclick="openScreen('notifications')">
+                <svg><use href="#i-bell"/></svg>
+                <span class="badge" id="notif-badge" style="display:none">0</span>
+            </button>
+            <h1>إدارة أجهزة البصمة</h1>
+            <button class="icon-btn" onclick="toggleDarkMode()">
+                <svg><use href="#i-moon"/></svg>
+            </button>
+        </div>
+
+        <div id="carousel-area">
+            <!-- تُملأ ديناميكيًا -->
+        </div>
+
+        <div class="services-grid">
+            <button class="service-tile" onclick="openScreen('sync')">
+                <div class="tile-icon" style="background:#1a73e8"><svg><use href="#i-sync"/></svg></div>
+                <span>مزامنة</span>
+            </button>
+            <button class="service-tile" onclick="openScreen('export')">
+                <div class="tile-icon" style="background:#6f42c1"><svg><use href="#i-export"/></svg></div>
+                <span>تصدير</span>
+            </button>
+            <button class="service-tile" onclick="openScreen('employees')">
+                <div class="tile-icon" style="background:#137333"><svg><use href="#i-users"/></svg></div>
+                <span>الموظفين</span>
+            </button>
+            <button class="service-tile" onclick="openScreen('devices')">
+                <div class="tile-icon" style="background:#b06000"><svg><use href="#i-devices"/></svg></div>
+                <span>الأجهزة</span>
+            </button>
+            <button class="service-tile" onclick="openScreen('history')">
+                <div class="tile-icon" style="background:#374151"><svg><use href="#i-history"/></svg></div>
+                <span>سجل العمليات</span>
+            </button>
+            <button class="service-tile" onclick="openScreen('settings')">
+                <div class="tile-icon" style="background:#c5221f"><svg><use href="#i-settings"/></svg></div>
+                <span>الإعدادات</span>
+            </button>
+        </div>
+
+        <div class="credit-footer" onclick="spinCreditBadge()">
+            <span class="credit-name-3d" id="credit-badge">رسـول الـڪـعـبـي</span>
+        </div>
+    </div>
+
+    <!-- ===== شاشة: الإشعارات ===== -->
+    <div class="screen" id="screen-notifications">
+        <div class="screen-header">
+            <button class="back-btn" onclick="closeScreen()"><svg><use href="#i-back"/></svg></button>
+            <h2>الإشعارات</h2>
+        </div>
+        <div class="screen-body">
+            <button class="btn outline" onclick="clearNotifications()">مسح كل الإشعارات</button>
+            <div id="notif-list" style="margin-top:12px;"></div>
+        </div>
+    </div>
+
+    <!-- ===== شاشة: المزامنة ===== -->
+    <div class="screen" id="screen-sync">
+        <div class="screen-header">
+            <button class="back-btn" onclick="closeScreen()"><svg><use href="#i-back"/></svg></button>
+            <h2>مزامنة</h2>
+        </div>
+        <div class="screen-body">
+            <div class="card">
+                <h3><svg><use href="#i-sync"/></svg> مزامنة سريعة (وقت الهاتف)</h3>
+                <button class="btn success" id="btn-sync-all" onclick="syncAllDevices()">مزامنة كل الأجهزة</button>
+                <label>الجهاز</label>
+                <select id="sync-single-device"></select>
+                <button class="btn" id="btn-sync-current" onclick="syncCurrentDevice()">مزامنة هذا الجهاز فقط</button>
+            </div>
+
+            <div class="card">
+                <h3><svg><use href="#i-clock"/></svg> تعيين وقت مخصص</h3>
+                <label>الجهاز</label>
+                <select id="custom-sync-device"></select>
+                <label>التاريخ والوقت</label>
+                <input type="datetime-local" id="custom-sync-datetime">
+                <button class="btn" onclick="submitCustomSync()">إرسال الوقت للجهاز</button>
+            </div>
+
+            <div class="card">
+                <h3><svg><use href="#i-clock"/></svg> جدولة تلقائية</h3>
+                <p class="empty-hint" style="margin-top:0; text-align:right;">
+                    كل جدولة مرتبطة بجهاز واحد أو أكثر، ولكل جدولة أوقاتها الخاصة بها.
+                </p>
+                <div id="schedules-list"></div>
+                <button class="btn outline" onclick="openAddScheduleForm()">➕ إضافة جدولة جديدة</button>
+                <p class="empty-hint">لضمان تنفيذ الجدولة حتى لو كان التطبيق مغلقًا، فعّل "السماح بالعمل في الخلفية" من قسم الإعدادات.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== شاشة: إضافة جدولة جديدة ===== -->
+    <div class="screen" id="screen-add-schedule">
+        <div class="screen-header">
+            <button class="back-btn" onclick="closeScreen()"><svg><use href="#i-back"/></svg></button>
+            <h2 id="add-schedule-title">إضافة جدولة جديدة</h2>
+        </div>
+        <div class="screen-body">
+            <div class="card">
+                <label>اسم الجدولة (اختياري)</label>
+                <input type="text" id="new-sch-name" placeholder="مثال: مزامنة الفروع الرئيسية">
+
+                <label>الأجهزة المشمولة</label>
+                <div id="new-sch-devices-list"></div>
+
+                <div class="switch-row" style="margin-top:14px;">
+                    <span>أوقات ثابتة يوميًا</span>
+                    <label class="switch"><input type="checkbox" id="new-sch-use-times" onchange="renderNewScheduleUI()"><span class="slider"></span></label>
+                </div>
+                <div id="new-sch-times-block" style="display:none">
+                    <div class="time-chip-row" id="new-sch-times-list"></div>
+                    <div class="btn-row">
+                        <input type="time" id="new-sch-new-time" style="flex:1">
+                        <button class="btn" style="width:auto; padding:11px 16px;" onclick="addNewScheduleTime()">إضافة</button>
+                    </div>
+                </div>
+
+                <div class="switch-row" style="margin-top:14px;">
+                    <span>فترة تكرار</span>
+                    <label class="switch"><input type="checkbox" id="new-sch-use-interval" onchange="renderNewScheduleUI()"><span class="slider"></span></label>
+                </div>
+                <div id="new-sch-interval-block" style="display:none">
+                    <label>الفاصل الزمني (بالدقائق)</label>
+                    <input type="number" id="new-sch-interval-minutes" min="5" value="60">
+                    <p id="new-sch-interval-warning" class="empty-hint" style="color:var(--warning); display:none; text-align:right; margin-top:6px;">
+                        ⚠️ فترة التكرار تعمل فقط عند تفعيل "وضع المراقبة المستمرة" من قسم الإعدادات
+                        (وإلا لن تُنفَّذ هذه الجدولة إطلاقًا أثناء إغلاق التطبيق).
+                    </p>
+                </div>
+
+                <button class="btn success" onclick="submitAddSchedule()">حفظ الجدولة</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== شاشة: التصدير ===== -->
+    <div class="screen" id="screen-export">
+        <div class="screen-header">
+            <button class="back-btn" onclick="closeScreen()"><svg><use href="#i-back"/></svg></button>
+            <h2>تصدير</h2>
+        </div>
+        <div class="screen-body">
+            <div class="card">
+                <h3><svg><use href="#i-eye"/></svg> عرض السجلات</h3>
+                <label>الجهاز</label>
+                <select id="view-device"></select>
+
+                <div class="switch-row">
+                    <span>فترة محددة (بدل كل السجلات)</span>
+                    <label class="switch"><input type="checkbox" id="view-use-period" onchange="renderViewPeriodUI()"><span class="slider"></span></label>
+                </div>
+                <div id="view-period-block" style="display:none">
+                    <label>من تاريخ</label>
+                    <input type="date" id="view-start">
+                    <label>إلى تاريخ</label>
+                    <input type="date" id="view-end">
+                </div>
+
+                <div class="search-box" style="margin-top:12px;">
+                    <svg><use href="#i-search"/></svg>
+                    <input type="text" id="view-search" placeholder="بحث بالرقم..." oninput="debounceViewSearch()">
+                </div>
+
+                <button class="btn" onclick="loadAttendanceView()">عرض السجلات</button>
+                <div class="result-box" id="view-results"></div>
+            </div>
+
+            <div class="card">
+                <h3><svg><use href="#i-file"/></svg> تصدير كملف</h3>
+                <label>الجهاز</label>
+                <select id="export-device"></select>
+                <label>من تاريخ</label>
+                <input type="date" id="export-start">
+                <label>إلى تاريخ</label>
+                <input type="date" id="export-end">
+                <label>الصيغة</label>
+                <div class="btn-row">
+                    <button class="btn purple" style="flex:1" onclick="exportFile('xlsx')">Excel</button>
+                    <button class="btn purple" style="flex:1" onclick="exportFile('csv')">CSV</button>
+                    <button class="btn purple" style="flex:1" onclick="exportFile('dat')">.dat</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== شاشة: الموظفين ===== -->
+    <div class="screen" id="screen-employees">
+        <div class="screen-header">
+            <button class="back-btn" onclick="closeScreen()"><svg><use href="#i-back"/></svg></button>
+            <h2>الموظفين</h2>
+        </div>
+        <div class="screen-body">
+            <div class="tabs">
+                <button id="emp-tab-list" class="active" onclick="switchEmpTab('list')">القائمة</button>
+                <button id="emp-tab-add" onclick="switchEmpTab('add')">إضافة موظف</button>
+                <button id="emp-tab-tools" onclick="switchEmpTab('tools')">نقل ومطابقة</button>
+            </div>
+
+            <div id="emp-panel-list">
+                <div class="card">
+                    <label>الجهاز</label>
+                    <select id="emp-list-device" onchange="loadEmployees()"></select>
+                    <div class="search-box" style="margin-top:10px;">
+                        <svg><use href="#i-search"/></svg>
+                        <input type="text" id="emp-search" placeholder="بحث بالاسم أو رقم الموظف..." oninput="debounceEmpSearch()">
+                    </div>
+                    <div class="result-box" id="emp-list-results"></div>
+                </div>
+            </div>
+
+            <div id="emp-panel-add" style="display:none">
+                <div class="card">
+                    <label>الجهاز</label>
+                    <select id="emp-add-device"></select>
+                    <label>رقم الموظف</label>
+                    <input type="text" id="emp-number" placeholder="مثال: 66" autocomplete="off">
+                    <label>الاسم (اختياري)</label>
+                    <input type="text" id="emp-name">
+                    <label>كلمة المرور (اختياري)</label>
+                    <input type="text" id="emp-password">
+                    <label>الصلاحية</label>
+                    <select id="emp-privilege">
+                        <option value="0">مستخدم عادي</option>
+                        <option value="14">مدير</option>
+                    </select>
+                    <button class="btn success" onclick="submitAddEmployee()">حفظ الموظف في الجهاز</button>
+                </div>
+            </div>
+
+            <div id="emp-panel-tools" style="display:none">
+                <div class="card">
+                    <h3><svg><use href="#i-export"/></svg> تصدير الموظفين مع بصماتهم</h3>
+                    <label>الجهاز</label>
+                    <select id="emp-export-device"></select>
+                    <p class="card-note">يُحفظ ملف فيه بيانات الموظفين وبصمات أصابعهم. الوجوه لا تُنقل.
+                        الملف يحتوي بيانات حساسة، فلا ترسله في مجموعات عامة.</p>
+                    <button class="btn" id="emp-export-btn" onclick="exportEmployees()">تصدير الموظفين</button>
+                </div>
+
+                <div class="card">
+                    <h3><svg><use href="#i-file"/></svg> استيراد الموظفين من ملف</h3>
+                    <label>الجهاز الذي سيُستورد إليه</label>
+                    <select id="emp-import-device"></select>
+                    <label>ملف التصدير (json)</label>
+                    <input type="file" id="emp-import-file" accept=".json,application/json">
+                    <div class="switch-row" style="margin-top:12px;">
+                        <span>الكتابة فوق الموظفين الموجودين</span>
+                        <label class="switch"><input type="checkbox" id="emp-import-overwrite"><span class="slider"></span></label>
+                    </div>
+                    <p class="card-note">عند الإيقاف، يُتخطّى أي رقم موظف موجود مسبقًا على الجهاز ولا يُمسّ.</p>
+                    <div class="switch-row" style="margin-top:12px;">
+                        <span>البيانات فقط بدون بصمات</span>
+                        <label class="switch"><input type="checkbox" id="emp-import-skip-fingers"><span class="slider"></span></label>
+                    </div>
+                    <p class="card-note">مفيد حين يرفض الجهاز الهدف بصمات جهاز آخر، أو حين تريد نقل الأسماء والأرقام فقط.</p>
+                    <button class="btn success" id="emp-import-btn" onclick="startEmployeesImport()">استيراد إلى الجهاز</button>
+                    <div id="emp-import-progress" style="display:none">
+                        <div class="progress-track"><div class="progress-fill" id="emp-import-bar"></div></div>
+                        <div class="job-status" id="emp-import-text"></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3><svg><use href="#i-search"/></svg> مطابقة أرقام الموظفين بملف إكسل</h3>
+                    <label>الجهاز</label>
+                    <select id="emp-match-device"></select>
+                    <label>ملف الإكسل (xlsx)</label>
+                    <input type="file" id="emp-match-file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+                    <p class="card-note">يُقرأ عمود رقم الموظف تلقائيًا، ويُضاف بجانب بياناتك عمود «الحالة على الجهاز»
+                        فيه موجود أو غير موجود لكل رقم.</p>
+                    <button class="btn" id="emp-match-btn" onclick="runExcelMatch()">مطابقة وتنزيل النتيجة</button>
+                    <div class="job-status" id="emp-match-result"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== شاشة: الأجهزة ===== -->
+    <div class="screen" id="screen-devices">
+        <div class="screen-header">
+            <button class="back-btn" onclick="closeScreen()"><svg><use href="#i-back"/></svg></button>
+            <h2>الأجهزة</h2>
+        </div>
+        <div class="screen-body">
+            <div class="card">
+                <h3><svg><use href="#i-building"/></svg> الأجهزة المسجلة</h3>
+                <div id="devices-list"></div>
+            </div>
+            <div class="card">
+                <h3><svg><use href="#i-plus"/></svg> إضافة جهاز جديد</h3>
+                <label>اسم الفرع / الجهاز</label>
+                <input type="text" id="new-device-name" placeholder="مثال: شرق بغداد">
+                <label>عنوان IP</label>
+                <input type="text" id="new-device-ip" placeholder="10.5.0.157">
+                <label>Comm Key (اختياري — اتركه فارغًا إن لم يكن للجهاز كلمة مرور اتصال)</label>
+                <input type="number" id="new-device-comm-key" placeholder="0" min="0">
+                <button class="btn outline" onclick="testNewDevice()">اختبار الاتصال</button>
+                <div id="new-device-test-result" style="margin-top:8px; font-size:12.5px;"></div>
+                <button class="btn success" onclick="submitAddDevice()">إضافة الجهاز</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== شاشة: سجل العمليات ===== -->
+    <div class="screen" id="screen-history">
+        <div class="screen-header">
+            <button class="back-btn" onclick="closeScreen()"><svg><use href="#i-back"/></svg></button>
+            <h2>سجل العمليات</h2>
+        </div>
+        <div class="screen-body">
+            <div class="card">
+                <button class="btn danger" onclick="clearHistory()">مسح كل السجل</button>
+                <div class="result-box" id="history-list" style="margin-top:12px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== شاشة: الإعدادات ===== -->
+    <div class="screen" id="screen-settings">
+        <div class="screen-header">
+            <button class="back-btn" onclick="closeScreen()"><svg><use href="#i-back"/></svg></button>
+            <h2>الإعدادات</h2>
+        </div>
+        <div class="screen-body">
+            <div class="card">
+                <div class="switch-row">
+                    <span style="display:flex; align-items:center; gap:8px;"><svg style="width:18px;height:18px;stroke:var(--text)"><use href="#i-moon"/></svg> الوضع الليلي</span>
+                    <label class="switch"><input type="checkbox" id="setting-dark" onchange="onDarkToggle()"><span class="slider"></span></label>
+                </div>
+                <div class="switch-row" style="margin-top:14px;">
+                    <span style="display:flex; align-items:center; gap:8px;"><svg style="width:18px;height:18px;stroke:var(--text)"><use href="#i-lock"/></svg> قفل التطبيق ببصمة الهاتف</span>
+                    <label class="switch"><input type="checkbox" id="setting-lock" onchange="onLockToggle()"><span class="slider"></span></label>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3><svg><use href="#i-settings"/></svg> العمل في الخلفية</h3>
+                <p class="empty-hint" style="margin-top:0; text-align:right;">
+                    إذن نظام واحد من أندرويد يمنع "توفير البطارية" من إيقاف أي مهمة خلفية للتطبيق —
+                    مفيد لكل أنواع الجدولة (الأوقات الثابتة ووضع المراقبة المستمرة معًا).
+                </p>
+                <button class="btn outline" onclick="requestBatteryExemption()">السماح بالعمل في الخلفية</button>
+            </div>
+
+            <div class="card">
+                <h3><svg><use href="#i-warn"/></svg> وضع المراقبة المستمرة</h3>
+                <p class="empty-hint" style="margin-top:0; text-align:right;">
+                    يشغّل خدمة خلفية حقيقية بدقة توقيت عالية (بدل التقريب لأقرب 15-30 دقيقة)، وهو
+                    الوضع الوحيد الذي يدعم جدولات "فترة التكرار" وكشف انحراف الوقت أثناء إغلاق
+                    التطبيق — مقابل إشعار هادئ ثابت في شريط الحالة (بدون صوت أو اهتزاز) يعرض حالة
+                    تزامن أجهزتك. الأوقات الثابتة تعمل دائمًا بشكل مستقل بدون الحاجة لتفعيل هذا الوضع.
+                </p>
+                <div class="switch-row">
+                    <span>تفعيل وضع المراقبة المستمرة</span>
+                    <label class="switch"><input type="checkbox" id="setting-continuous-monitoring" onchange="onContinuousMonitoringToggle()"><span class="slider"></span></label>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3><svg><use href="#i-share"/></svg> تواصل معنا</h3>
+                <div class="list-row" style="cursor:pointer;" onclick="openSupportEmail()">
+                    <div class="info">
+                        <b>عبر البريد الإلكتروني</b>
+                        <span dir="ltr" style="text-align:right; display:block;">Rasoolalka3bi91@gmail.com</span>
+                    </div>
+                    <svg style="width:18px;height:18px;stroke:var(--primary);transform:rotate(180deg)"><use href="#i-back"/></svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<script>
+// ==========================================================================
+// حالة عامة
+// ==========================================================================
+let devicesCache = [];
+let currentCarouselDeviceId = null;
+let empSearchTimer = null, viewSearchTimer = null;
+let pendingDeleteDevice = null;
+
+// ==========================================================================
+// أدوات مساعدة: طلبات الشبكة
+// ==========================================================================
+async function apiGet(url) {
+    const res = await fetch(url);
+    return res.json();
+}
+async function apiPost(url, body) {
+    const res = await fetch(url, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body || {})
+    });
+    return res.json();
+}
+async function apiDelete(url) {
+    const res = await fetch(url, {method: 'DELETE'});
+    return res.json();
+}
+
+// ==========================================================================
+// توست + سناك بار + مودال تأكيد
+// ==========================================================================
+function showToast(message, type) {
+    const wrap = document.getElementById('toast-wrap');
+    const el = document.createElement('div');
+    el.className = 'toast' + (type ? ' ' + type : '');
+    el.textContent = message;
+    wrap.appendChild(el);
+    setTimeout(() => el.remove(), 2600);
+}
+
+function showSnackbarUndo(message, onUndo) {
+    const wrap = document.getElementById('toast-wrap');
+    const el = document.createElement('div');
+    el.className = 'snackbar';
+    el.innerHTML = `<span>${message}</span><button>تراجع</button>`;
+    let undone = false;
+    el.querySelector('button').onclick = () => { undone = true; onUndo(); el.remove(); };
+    wrap.appendChild(el);
+    setTimeout(() => { if (!undone) el.remove(); }, 5000);
+}
+
+function showConfirm(title, message, {danger=false} = {}) {
+    return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML = `
+            <div class="modal-sheet ${danger ? 'warn' : ''}">
+                <h3>${title}</h3>
+                <p>${message}</p>
+                <button class="btn ${danger ? 'danger' : ''}" id="confirm-ok">تأكيد</button>
+                <button class="btn outline" id="confirm-cancel">إلغاء</button>
+            </div>`;
+        document.body.appendChild(overlay);
+        overlay.querySelector('#confirm-ok').onclick = () => { overlay.remove(); resolve(true); };
+        overlay.querySelector('#confirm-cancel').onclick = () => { overlay.remove(); resolve(false); };
+        overlay.onclick = (e) => { if (e.target === overlay) { overlay.remove(); resolve(false); } };
+    });
+}
+
+// تحذير عند اختيار جهاز غير متصل قبل تنفيذ أي عملية عليه
+async function warnIfOffline(deviceId) {
+    const d = devicesCache.find(x => x.id === deviceId);
+    if (d && d.status === 'offline') {
+        return await showConfirm('⚠️ الجهاز غير متصل', `الجهاز (${d.name}) يبدو غير متصل حاليًا. هل تريد المتابعة رغم ذلك؟`, {danger: true});
+    }
+    return true;
+}
+
+// ==========================================================================
+// التنقل بين الشاشات (SPA عبر location.hash)
+// ==========================================================================
+function openScreen(name) {
+    location.hash = name;
+}
+function closeScreen() {
+    history.back();
+}
+function renderRoute() {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('open'));
+    const hash = location.hash.replace('#', '');
+    if (hash) {
+        const el = document.getElementById('screen-' + hash);
+        if (el) {
+            el.classList.add('open');
+            onScreenOpen(hash);
+        }
+    }
+}
+window.addEventListener('hashchange', renderRoute);
+
+function onScreenOpen(name) {
+    if (name === 'sync') { fillDeviceSelect('custom-sync-device'); fillDeviceSelect('sync-single-device'); loadSchedules(); }
+    if (name === 'export') { fillDeviceSelect('view-device'); fillDeviceSelect('export-device'); }
+    if (name === 'employees') {
+        ['emp-list-device', 'emp-add-device', 'emp-export-device', 'emp-import-device', 'emp-match-device'].forEach(id => fillDeviceSelect(id));
+        loadEmployees();
+    }
+    if (name === 'devices') { renderDevicesList(); }
+    if (name === 'history') { loadHistory(); }
+    if (name === 'notifications') { loadNotifications(); apiPost('/api/notifications/read'); }
+    if (name === 'settings') { loadSettings(); }
+}
+
+// ==========================================================================
+// الشريحة العلوية (كاروسيل الأجهزة) + حالة حية
+// ==========================================================================
+async function loadDevices() {
+    const focusParam = currentCarouselDeviceId ? ('?focus=' + encodeURIComponent(currentCarouselDeviceId)) : '';
+    const data = await apiGet('/api/devices' + focusParam);
+    devicesCache = data.devices;
+    renderCarousel();
+
+    // إشعار نظام حقيقي فورًا حتى أثناء بقاء التطبيق مفتوحًا في المقدمة
+    // (وليس فقط من مهمة الخلفية) لأي تنبيه جديد (انقطاع اتصال / تغيير وقت)
+    if (data.new_alerts && data.new_alerts.length && window.AndroidBridge && window.AndroidBridge.postAlert) {
+        data.new_alerts.forEach(msg => window.AndroidBridge.postAlert(msg));
+    }
+    if (data.new_alerts && data.new_alerts.length) {
+        pollNotifBadge();
+    }
+
+    return devicesCache;
+}
+
+let lastRenderedDeviceIds = null;
+
+function renderCarousel() {
+    const area = document.getElementById('carousel-area');
+    if (!devicesCache.length) {
+        lastRenderedDeviceIds = null;
+        area.innerHTML = `
+            <div class="empty-state">
+                <svg><use href="#i-building"/></svg>
+                <h3>لا يوجد أي جهاز مضاف بعد</h3>
+                <p>أضف أول جهاز بصمة للبدء في الإدارة والتحكم</p>
+                <button class="btn" style="width:auto; padding:11px 22px;" onclick="openScreen('devices')">إضافة جهاز</button>
+            </div>`;
+        return;
+    }
+
+    const currentIds = devicesCache.map(d => d.id).join(',');
+    const existingTrack = document.getElementById('carousel-track');
+
+    if (existingTrack && lastRenderedDeviceIds === currentIds) {
+        // تحديث خفيف فقط (بدون إعادة بناء) - يحافظ على موضع السحب الحالي
+        devicesCache.forEach(d => {
+            const card = existingTrack.querySelector(`[data-id="${d.id}"]`);
+            if (!card) return;
+            const offline = d.status === 'offline';
+            card.classList.toggle('offline', offline);
+            const pill = card.querySelector('.status-pill');
+            pill.classList.toggle('off', offline);
+            pill.innerHTML = `<span class="status-dot"></span>${offline ? 'غير متصل' : 'متصل'}`;
+            const infoBlock = card.querySelector('.row1').nextElementSibling;
+            infoBlock.innerHTML = d.device_time
+                ? `<div class="dtime">${d.device_time.split(' ')[1]}</div><div class="ddate">${d.device_time.split(' ')[0]}</div>`
+                : `<div class="lastseen">${d.last_seen ? 'آخر اتصال: ' + d.last_seen : 'لا يوجد اتصال سابق'}</div>`;
+        });
+        return;
+    }
+
+    lastRenderedDeviceIds = currentIds;
+
+    let html = '<div class="carousel-wrap"><div class="carousel" id="carousel-track">';
+    devicesCache.forEach(d => {
+        const offline = d.status === 'offline';
+        html += `
+        <div class="device-card ${offline ? 'offline' : ''}" data-id="${d.id}">
+            <div class="row1">
+                <div>
+                    <div class="dname">${d.name}</div>
+                    <div class="dip">${d.ip}</div>
+                </div>
+                <div class="status-pill ${offline ? 'off' : ''}">
+                    <span class="status-dot"></span>${offline ? 'غير متصل' : 'متصل'}
+                </div>
+            </div>
+            <div>
+                ${d.device_time ? `<div class="dtime">${d.device_time.split(' ')[1]}</div><div class="ddate">${d.device_time.split(' ')[0]}</div>` : `<div class="lastseen">${d.last_seen ? 'آخر اتصال: ' + d.last_seen : 'لا يوجد اتصال سابق'}</div>`}
+            </div>
+        </div>`;
+    });
+    html += '</div></div><div class="dots" id="carousel-dots">';
+    // نقطة البداية دايمًا الجهاز "المفعّل" (من قسم الأجهزة) لو موجود، مش
+    // أول جهاز حسب ترتيب الإضافة - عشان يتطابق السلوك من أول فتحة للتطبيق
+    // مع أي إعادة رسم لاحقة، بدل تعارض كان يحصل بينهم قبل كده
+    const defaultIdx = Math.max(0, devicesCache.findIndex(d => d.active));
+    devicesCache.forEach((d, i) => { html += `<span class="${i === defaultIdx ? 'active' : ''}"></span>`; });
+    html += '</div>';
+
+    area.innerHTML = html;
+    currentCarouselDeviceId = devicesCache[defaultIdx].id;
+
+    const track = document.getElementById('carousel-track');
+    const dots = document.querySelectorAll('#carousel-dots span');
+    if (defaultIdx > 0) {
+        // نمرّر الكاروسيل فعليًا لبطاقة الجهاز المفعّل، مش بس نتتبعها في
+        // الذاكرة من غير ما تظهر على الشاشة فعلاً. نستخدم الموقع الفعلي
+        // للبطاقة (offsetLeft) لا حساب "clientWidth × الرقم" - البطاقات
+        // 88% من العرض فقط، فالحساب البسيط كان يوصل لموضع غير دقيق.
+        requestAnimationFrame(() => {
+            const targetCard = track.querySelectorAll('.device-card')[defaultIdx];
+            if (targetCard) {
+                track.scrollLeft = targetCard.offsetLeft - (track.clientWidth - targetCard.offsetWidth) / 2;
+            }
+        });
+    }
+    let scrollSettleTimer = null;
+    // نحدد البطاقة الحالية بموقعها الهندسي الفعلي على الشاشة (أقرب بطاقة
+    // لمنتصف منطقة العرض)، وليس بقسمة حسابية بسيطة (scrollLeft ÷ العرض
+    // الكامل) - القسمة البسيطة كانت تفترض أن كل بطاقة تأخذ 100% من العرض،
+    // بينما كل بطاقة فعليًا 88% فقط (تصميم مقصود يبقى كما هو) - فكانت
+    // القسمة أحيانًا "تخطئ" في تحديد الجهاز الصحيح أثناء السحب العادي.
+    function getCenteredCardIndex() {
+        const cards = track.querySelectorAll('.device-card');
+        const viewportCenter = track.scrollLeft + track.clientWidth / 2;
+        let closestIdx = 0;
+        let closestDistance = Infinity;
+        cards.forEach((card, i) => {
+            const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+            const distance = Math.abs(cardCenter - viewportCenter);
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestIdx = i;
+            }
+        });
+        return closestIdx;
+    }
+
+    track.addEventListener('scroll', () => {
+        const idx = getCenteredCardIndex();
+        dots.forEach((dot, i) => dot.classList.toggle('active', i === idx));
+        if (devicesCache[idx]) currentCarouselDeviceId = devicesCache[idx].id;
+
+        // تحديث فوري (لا ننتظر الاستطلاع الدوري كل 30 ثانية) بمجرد ما
+        // السحب يستقر على بطاقة جديدة - بدون هذا كانت الساعة الحية تفضل
+        // واقفة على "آخر اتصال" القديم لحد وصول الدورة العادية الجاية
+        clearTimeout(scrollSettleTimer);
+        scrollSettleTimer = setTimeout(() => { loadDevices(); }, 200);
+    });
+}
+
+// ==========================================================================
+// قوائم اختيار الجهاز (تُستخدم في كل الشاشات)
+// ==========================================================================
+function fillDeviceSelect(selectId, preferActive = true) {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = '';
+    devicesCache.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.id;
+        opt.textContent = (d.status === 'offline' ? '● (غير متصل) ' : '● ') + d.name;
+        if (d.status === 'offline') opt.className = 'offline-opt';
+        sel.appendChild(opt);
+    });
+    if (current && devicesCache.some(d => d.id === current)) {
+        sel.value = current;
+    } else if (preferActive) {
+        const active = devicesCache.find(d => d.active);
+        if (active) sel.value = active.id;
+    }
+}
+
+// ==========================================================================
+// المزامنة
+// ==========================================================================
+// تحديث فوري لمحتوى إشعار وضع المراقبة المستمرة بعد أي مزامنة يدوية ناجحة
+// (بدل انتظار النبضة الدورية القادمة، حتى دقيقة كاملة). لا تأثير لها إن
+// كانت الخدمة متوقفة أصلاً.
+function notifyBackgroundServiceRefresh() {
+    if (window.AndroidBridge && window.AndroidBridge.requestNotificationRefresh) {
+        window.AndroidBridge.requestNotificationRefresh();
+    }
+}
+
+async function syncAllDevices() {
+    const btn = document.getElementById('btn-sync-all');
+    setLoading(btn, true, 'مزامنة كل الأجهزة');
+    const res = await apiPost('/api/sync/all');
+    setLoading(btn, false, 'مزامنة كل الأجهزة');
+    if (res.synced.length) showToast(`✓ تمت مزامنة: ${res.synced.join('، ')}`, 'success');
+    if (res.failed.length) showToast(`✕ فشلت مزامنة: ${res.failed.join('، ')}`, 'error');
+    loadDevices();
+    notifyBackgroundServiceRefresh();
+}
+
+async function syncCurrentDevice() {
+    const deviceId = document.getElementById('sync-single-device').value;
+    if (!deviceId) { showToast('لا يوجد جهاز محدد', 'error'); return; }
+    if (!(await warnIfOffline(deviceId))) return;
+    const btn = document.getElementById('btn-sync-current');
+    setLoading(btn, true, 'مزامنة هذا الجهاز فقط');
+    const res = await apiPost('/api/sync/device/' + deviceId);
+    setLoading(btn, false, 'مزامنة هذا الجهاز فقط');
+    showToast(res.message, res.success ? 'success' : 'error');
+    loadDevices();
+    notifyBackgroundServiceRefresh();
+}
+
+async function submitCustomSync() {
+    const deviceId = document.getElementById('custom-sync-device').value;
+    const dt = document.getElementById('custom-sync-datetime').value;
+    if (!dt) { showToast('اختر التاريخ والوقت أولاً', 'error'); return; }
+    if (!(await warnIfOffline(deviceId))) return;
+    const res = await apiPost('/api/sync/custom', {device_id: deviceId, datetime: dt});
+    showToast(res.message, res.success ? 'success' : 'error');
+}
+
+function setLoading(btn, loading, label) {
+    btn.disabled = loading;
+    btn.innerHTML = loading ? `<span class="spinner"></span> جارِ التنفيذ...` : label;
+}
+
+// ---- الجدولة (مجموعات لكل جهاز/أجهزة) ----
+let newScheduleTimes = [];
+
+async function loadSchedules() {
+    const data = await apiGet('/api/schedules');
+    renderSchedulesList(data.schedules || []);
+}
+
+function deviceNamesForIds(ids) {
+    return ids.map(id => {
+        const d = devicesCache.find(x => x.id === id);
+        return d ? d.name : '؟';
+    }).join('، ');
+}
+
+function renderSchedulesList(schedules) {
+    const box = document.getElementById('schedules-list');
+    if (!schedules.length) {
+        box.innerHTML = '<p class="empty-hint">لا توجد أي جدولة مضافة بعد</p>';
+        return;
+    }
+    window._schedulesCache = schedules;
+    box.innerHTML = schedules.map(s => {
+        const parts = [];
+        if (s.use_times && s.times && s.times.length) parts.push('أوقات: ' + s.times.slice().sort().join('، '));
+        if (s.use_interval) parts.push('كل ' + s.interval_minutes + ' دقيقة');
+        const summary = parts.length ? parts.join(' — ') : 'بدون توقيت مفعّل';
+        return `
+        <div class="list-row">
+            <div class="info">
+                <b>${s.name}</b>
+                <span>${deviceNamesForIds(s.device_ids)}</span>
+                <span>${summary}</span>
+            </div>
+            <div class="row-actions" style="flex-direction:column; align-items:flex-end; gap:8px;">
+                <label class="switch"><input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="toggleSchedule('${s.id}', this.checked)"><span class="slider"></span></label>
+                <div class="btn-row" style="margin:0;">
+                    <button style="background:var(--primary);color:#fff" onclick="openEditScheduleForm('${s.id}')">تعديل</button>
+                    <button style="background:var(--danger);color:#fff" onclick="deleteSchedule('${s.id}')">حذف</button>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function toggleSchedule(id, enabled) {
+    // حفظ فوري تلقائي بدون الحاجة لضغط أي زر حفظ منفصل
+    await apiPost('/api/schedules/' + id + '/toggle', {enabled});
+    refreshBackgroundWork();
+    showToast(enabled ? 'تم تفعيل الجدولة' : 'تم إيقاف الجدولة', 'success');
+}
+
+async function deleteSchedule(id) {
+    const ok = await showConfirm('حذف الجدولة', 'هل تريد حذف هذه الجدولة؟', {danger: true});
+    if (!ok) return;
+    await apiDelete('/api/schedules/' + id);
+    refreshBackgroundWork();
+    loadSchedules();
+    showToast('تم حذف الجدولة', 'success');
+}
+
+let editingScheduleId = null;
+
+function openAddScheduleForm() {
+    editingScheduleId = null;
+    document.getElementById('add-schedule-title').textContent = 'إضافة جدولة جديدة';
+    document.getElementById('new-sch-name').value = '';
+    document.getElementById('new-sch-use-times').checked = false;
+    document.getElementById('new-sch-use-interval').checked = false;
+    document.getElementById('new-sch-interval-minutes').value = 60;
+    newScheduleTimes = [];
+    renderNewScheduleTimes();
+    renderNewScheduleUI();
+
+    const list = document.getElementById('new-sch-devices-list');
+    list.innerHTML = devicesCache.map(d => `
+        <label style="display:flex; align-items:center; gap:8px; padding:8px 0;">
+            <input type="checkbox" class="new-sch-device-cb" value="${d.id}" style="width:auto;">
+            ${d.name}
+        </label>`).join('') || '<p class="empty-hint">لا توجد أجهزة مضافة</p>';
+
+    openScreen('add-schedule');
+}
+
+function openEditScheduleForm(scheduleId) {
+    const s = (window._schedulesCache || []).find(x => x.id === scheduleId);
+    if (!s) return;
+
+    editingScheduleId = scheduleId;
+    document.getElementById('add-schedule-title').textContent = 'تعديل الجدولة';
+    document.getElementById('new-sch-name').value = s.name || '';
+    document.getElementById('new-sch-use-times').checked = !!s.use_times;
+    document.getElementById('new-sch-use-interval').checked = !!s.use_interval;
+    document.getElementById('new-sch-interval-minutes').value = s.interval_minutes || 60;
+    newScheduleTimes = (s.times || []).slice();
+    renderNewScheduleTimes();
+    renderNewScheduleUI();
+
+    const list = document.getElementById('new-sch-devices-list');
+    list.innerHTML = devicesCache.map(d => `
+        <label style="display:flex; align-items:center; gap:8px; padding:8px 0;">
+            <input type="checkbox" class="new-sch-device-cb" value="${d.id}" style="width:auto;" ${s.device_ids.includes(d.id) ? 'checked' : ''}>
+            ${d.name}
+        </label>`).join('') || '<p class="empty-hint">لا توجد أجهزة مضافة</p>';
+
+    openScreen('add-schedule');
+}
+
+async function renderNewScheduleUI() {
+    document.getElementById('new-sch-times-block').style.display = document.getElementById('new-sch-use-times').checked ? 'block' : 'none';
+    const useInterval = document.getElementById('new-sch-use-interval').checked;
+    document.getElementById('new-sch-interval-block').style.display = useInterval ? 'block' : 'none';
+
+    if (useInterval) {
+        const settings = await apiGet('/api/settings');
+        document.getElementById('new-sch-interval-warning').style.display =
+            settings.continuous_monitoring_enabled ? 'none' : 'block';
+    }
+}
+
+function addNewScheduleTime() {
+    const input = document.getElementById('new-sch-new-time');
+    if (!input.value) return;
+    if (!newScheduleTimes.includes(input.value)) newScheduleTimes.push(input.value);
+    input.value = '';
+    renderNewScheduleTimes();
+}
+function removeNewScheduleTime(t) {
+    newScheduleTimes = newScheduleTimes.filter(x => x !== t);
+    renderNewScheduleTimes();
+}
+function renderNewScheduleTimes() {
+    const wrap = document.getElementById('new-sch-times-list');
+    wrap.innerHTML = newScheduleTimes.sort().map(t => `<div class="time-chip">${t}<button onclick="removeNewScheduleTime('${t}')">×</button></div>`).join('');
+}
+
+async function submitAddSchedule() {
+    const deviceIds = Array.from(document.querySelectorAll('.new-sch-device-cb:checked')).map(cb => cb.value);
+    if (!deviceIds.length) { showToast('اختر جهازًا واحدًا على الأقل', 'error'); return; }
+
+    const payload = {
+        name: document.getElementById('new-sch-name').value.trim(),
+        device_ids: deviceIds,
+        use_times: document.getElementById('new-sch-use-times').checked,
+        times: newScheduleTimes,
+        use_interval: document.getElementById('new-sch-use-interval').checked,
+        interval_minutes: parseInt(document.getElementById('new-sch-interval-minutes').value || '60'),
+    };
+
+    const res = editingScheduleId
+        ? await fetch('/api/schedules/' + editingScheduleId, {
+            method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+          }).then(r => r.json())
+        : await apiPost('/api/schedules', payload);
+
+    if (res.success) {
+        refreshBackgroundWork();
+        closeScreen();
+        loadSchedules();
+        showToast(editingScheduleId ? 'تم تعديل الجدولة بنجاح' : 'تمت إضافة الجدولة بنجاح', 'success');
+        editingScheduleId = null;
+    } else {
+        showToast(res.message || 'تعذّرت العملية', 'error');
+    }
+}
+
+// نقطة موحّدة: تُستدعى بعد أي تغيير في الجدولة أو كشف تغيير الوقت في الخلفية
+function refreshBackgroundWork() {
+    if (window.AndroidBridge && window.AndroidBridge.refreshBackgroundSchedule) {
+        window.AndroidBridge.refreshBackgroundSchedule();
+    }
+    if (window.AndroidBridge && window.AndroidBridge.requestNotificationPermission) {
+        window.AndroidBridge.requestNotificationPermission();
+    }
+}
+
+function requestBatteryExemption() {
+    if (window.AndroidBridge && window.AndroidBridge.requestIgnoreBatteryOptimizations) {
+        window.AndroidBridge.requestIgnoreBatteryOptimizations();
+    } else {
+        showToast('غير متاح على هذا الجهاز', 'error');
+    }
+}
+
+// ==========================================================================
+// التصدير
+// ==========================================================================
+function renderViewPeriodUI() {
+    document.getElementById('view-period-block').style.display = document.getElementById('view-use-period').checked ? 'block' : 'none';
+}
+
+function debounceViewSearch() {
+    clearTimeout(viewSearchTimer);
+    viewSearchTimer = setTimeout(loadAttendanceView, 500);
+}
+
+async function loadAttendanceView() {
+    const deviceId = document.getElementById('view-device').value;
+    if (!deviceId) return;
+    if (!(await warnIfOffline(deviceId))) return;
+
+    const usePeriod = document.getElementById('view-use-period').checked;
+    const start = usePeriod ? document.getElementById('view-start').value : '';
+    const end = usePeriod ? document.getElementById('view-end').value : '';
+    const q = document.getElementById('view-search').value;
+
+    const params = new URLSearchParams({device_id: deviceId, start, end, q});
+    const box = document.getElementById('view-results');
+    box.innerHTML = '<p class="empty-hint">جارِ التحميل...</p>';
+
+    const res = await apiGet('/api/attendance/view?' + params.toString());
+    if (!res.success) { box.innerHTML = `<p class="empty-hint">${res.message}</p>`; return; }
+    if (!res.records.length) { box.innerHTML = '<p class="empty-hint">لا توجد سجلات مطابقة</p>'; return; }
+
+    box.innerHTML = res.records.map(r =>
+        `<div class="result-line">ID: ${r.user_id} | UID: ${r.uid} | ${r.timestamp} | الحالة: ${r.status}</div>`
+    ).join('');
+}
+
+let exportRetryTimer = null;
+let exportRetryCount = 0;
+const EXPORT_MAX_RETRIES = 30;      // حتى 5 دقائق تقريبًا (30 × 10 ثانية)
+const EXPORT_RETRY_DELAY_MS = 10000;
+
+async function exportFile(format) {
+    const deviceId = document.getElementById('export-device').value;
+    if (!deviceId) { showToast('اختر الجهاز أولاً', 'error'); return; }
+
+    cancelExportRetry(); // ألغِ أي محاولة سابقة معلّقة قبل بدء تصدير جديد
+
+    const start = document.getElementById('export-start').value;
+    const end = document.getElementById('export-end').value;
+    attemptExportPrepare({device_id: deviceId, start, end, format});
+}
+
+async function attemptExportPrepare(payload) {
+    hideExportRetryStatus();
+    const res = await apiPost('/api/attendance/export/prepare', payload);
+
+    if (res.success) {
+        exportRetryCount = 0;
+        // الملف جاهز فعليًا في الخادم - التنزيل الآن فوري بدون أي اتصال بالجهاز
+        const a = document.createElement('a');
+        a.href = '/api/attendance/export/download/' + encodeURIComponent(res.token) + '/' + encodeURIComponent(res.filename);
+        a.click();
+        showToast('بدأ تنزيل الملف', 'success');
+        return;
+    }
+
+    if (res.offline && exportRetryCount < EXPORT_MAX_RETRIES) {
+        exportRetryCount++;
+        showExportRetryStatus(`⚠️ ${res.message} — إعادة المحاولة تلقائيًا (${exportRetryCount}/${EXPORT_MAX_RETRIES})`);
+        exportRetryTimer = setTimeout(() => attemptExportPrepare(payload), EXPORT_RETRY_DELAY_MS);
+    } else {
+        showToast(res.message || 'تعذّر التصدير', 'error');
+        hideExportRetryStatus();
+    }
+}
+
+function cancelExportRetry() {
+    if (exportRetryTimer) { clearTimeout(exportRetryTimer); exportRetryTimer = null; }
+    exportRetryCount = 0;
+    hideExportRetryStatus();
+}
+
+function showExportRetryStatus(message) {
+    let box = document.getElementById('export-retry-status');
+    if (!box) {
+        box = document.createElement('div');
+        box.id = 'export-retry-status';
+        box.className = 'card';
+        box.innerHTML = `<p style="margin:0; font-size:12.5px; color:var(--warning);" id="export-retry-text"></p>
+                          <button class="btn outline" style="margin-top:8px;" onclick="cancelExportRetry()">إلغاء إعادة المحاولة</button>`;
+        document.querySelector('#screen-export .screen-body').appendChild(box);
+    }
+    document.getElementById('export-retry-text').textContent = message;
+    box.style.display = 'block';
+}
+
+function hideExportRetryStatus() {
+    const box = document.getElementById('export-retry-status');
+    if (box) box.style.display = 'none';
+}
+
+// ==========================================================================
+// الموظفين
+// ==========================================================================
+function switchEmpTab(tab) {
+    ['list', 'add', 'tools'].forEach(t => {
+        document.getElementById('emp-tab-' + t).classList.toggle('active', tab === t);
+        document.getElementById('emp-panel-' + t).style.display = tab === t ? 'block' : 'none';
+    });
+}
+
+function escapeHtml(text) {
+    return String(text ?? '').replace(/[&<>"']/g, c =>
+        ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+}
+
+function employeeLabel(number, name) {
+    return name ? `(${escapeHtml(name)}) رقم ${escapeHtml(number)}` : `رقم ${escapeHtml(number)}`;
+}
+
+function debounceEmpSearch() {
+    clearTimeout(empSearchTimer);
+    empSearchTimer = setTimeout(loadEmployees, 500);
+}
+
+async function loadEmployees() {
+    const deviceId = document.getElementById('emp-list-device').value;
+    if (!deviceId) return;
+    if (!(await warnIfOffline(deviceId))) return;
+
+    const q = document.getElementById('emp-search').value;
+    const box = document.getElementById('emp-list-results');
+    box.innerHTML = '<p class="empty-hint">جارِ التحميل...</p>';
+
+    const res = await apiGet('/api/employees?' + new URLSearchParams({device_id: deviceId, q}));
+    if (!res.success) { box.innerHTML = `<p class="empty-hint">${escapeHtml(res.message)}</p>`; return; }
+    if (!res.employees.length) { box.innerHTML = '<p class="empty-hint">لا يوجد موظفون</p>'; return; }
+
+    box.innerHTML = res.employees.map(e =>
+        `<div class="result-line" style="direction:rtl">رقم الموظف: ${escapeHtml(e.user_id || '—')} | ` +
+        `الاسم: ${e.name ? escapeHtml(e.name) : 'بدون اسم'} | الصلاحية: ${e.privilege === 14 ? 'مدير' : 'عادي'}</div>`
+    ).join('');
+}
+
+async function submitAddEmployee(confirmOverwrite) {
+    const deviceId = document.getElementById('emp-add-device').value;
+    if (!deviceId) { showToast('اختر الجهاز أولاً', 'error'); return; }
+    if (!(await warnIfOffline(deviceId))) return;
+
+    const number = document.getElementById('emp-number').value.trim();
+    const name = document.getElementById('emp-name').value.trim();
+    if (!number) { showToast('أدخل رقم الموظف', 'error'); return; }
+
+    const res = await apiPost('/api/employees', {
+        device_id: deviceId, user_id: number, name,
+        password: document.getElementById('emp-password').value,
+        privilege: document.getElementById('emp-privilege').value,
+        confirm_overwrite: !!confirmOverwrite,
+    });
+
+    if (!res.success && res.number_exists) {
+        const who = res.existing_name ? ` للموظف (${escapeHtml(res.existing_name)})` : '';
+        const ok = await showConfirm(
+            'رقم الموظف مسجّل بالفعل',
+            `رقم الموظف (${escapeHtml(number)}) مسجّل بالفعل على الجهاز${who}. المتابعة ستحدّث بياناته بما أدخلته، والحقول التي تركتها فارغة تبقى كما هي. هل تريد المتابعة؟`,
+            {danger: true}
+        );
+        if (ok) await submitAddEmployee(true);
+        return;
+    }
+
+    showToast(res.message, res.success ? 'success' : 'error');
+    if (res.success) {
+        document.getElementById('emp-number').value = '';
+        document.getElementById('emp-name').value = '';
+        document.getElementById('emp-password').value = '';
+    }
+}
+
+// ---------- نقل ومطابقة: أدوات مشتركة ----------
+function setBtnBusy(btn, busy, busyText) {
+    if (busy) {
+        btn.dataset.label = btn.textContent;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner"></span> ${escapeHtml(busyText)}`;
+    } else {
+        btn.disabled = false;
+        btn.textContent = btn.dataset.label || btn.textContent;
+    }
+}
+
+function downloadPreparedFile(token, filename) {
+    const a = document.createElement('a');
+    a.href = '/api/attendance/export/download/' + encodeURIComponent(token) + '/' + encodeURIComponent(filename);
+    a.click();
+}
+
+function readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result);
+        r.onerror = () => reject(r.error);
+        r.readAsText(file, 'utf-8');
+    });
+}
+
+function readFileAsBase64(file) {
+    return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result).split(',')[1] || '');
+        r.onerror = () => reject(r.error);
+        r.readAsDataURL(file);
+    });
+}
+
+// ---------- اختيار نطاق الموظفين (الكل أو أرقام محددة) ----------
+// نفس منطق normalize_employee_number في الخادم: 66 و066 رقم واحد
+function normalizeEmployeeNumber(value) {
+    let s = String(value ?? '').replace(/\s+/g, '').toUpperCase();
+    if (/^\d+$/.test(s)) s = s.replace(/^0+/, '') || '0';
+    return s;
+}
+
+// رقم واحد في كل سطر؛ يحذف الأسطر الفارغة والمسافات والمكرر
+function parseEmployeeNumbersInput(text) {
+    const seen = new Set(), out = [];
+    String(text || '').split(/\r?\n/).forEach(line => {
+        const shown = line.trim();
+        const key = normalizeEmployeeNumber(shown);
+        if (key && !seen.has(key)) { seen.add(key); out.push(shown); }
+    });
+    return out;
+}
+
+/** يرجع null عند الإلغاء، أو {mode: 'all'}، أو {mode: 'some', numbers: [...]} */
+function showScopeDialog(title, confirmLabel) {
+    return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML = `
+            <div class="modal-sheet">
+                <h3>${escapeHtml(title)}</h3>
+                <label class="scope-option"><input type="radio" name="emp-scope" value="all" checked> جميع الموظفين</label>
+                <label class="scope-option"><input type="radio" name="emp-scope" value="some"> موظفون محددون</label>
+                <div id="scope-numbers-block" style="display:none">
+                    <label>أرقام الموظفين (رقم في كل سطر)</label>
+                    <textarea class="scope-numbers" id="scope-numbers" placeholder="66&#10;NN-749397"></textarea>
+                    <div class="scope-error" id="scope-error"></div>
+                </div>
+                <button class="btn" id="scope-ok">${escapeHtml(confirmLabel)}</button>
+                <button class="btn outline" id="scope-cancel">إلغاء</button>
+            </div>`;
+        document.body.appendChild(overlay);
+
+        const block = overlay.querySelector('#scope-numbers-block');
+        const area = overlay.querySelector('#scope-numbers');
+        const errBox = overlay.querySelector('#scope-error');
+        const selectedMode = () => overlay.querySelector('input[name="emp-scope"]:checked').value;
+        overlay.querySelectorAll('input[name="emp-scope"]').forEach(r => r.onchange = () => {
+            block.style.display = selectedMode() === 'some' ? 'block' : 'none';
+            if (selectedMode() === 'some') area.focus();
+        });
+        area.oninput = () => { errBox.textContent = ''; };
+
+        const close = (value) => { overlay.remove(); resolve(value); };
+        overlay.querySelector('#scope-ok').onclick = () => {
+            if (selectedMode() === 'all') { close({mode: 'all'}); return; }
+            const numbers = parseEmployeeNumbersInput(area.value);
+            if (!numbers.length) { errBox.textContent = 'اكتب رقم موظف واحدًا على الأقل'; area.focus(); return; }
+            close({mode: 'some', numbers});
+        };
+        overlay.querySelector('#scope-cancel').onclick = () => close(null);
+        overlay.onclick = (e) => { if (e.target === overlay) close(null); };
+    });
+}
+
+function missingNumbersHtml(missing) {
+    // span وليس div: الرسالة تُعرض داخل <p>، والـ div داخل p يكسر تنسيق باقي النص
+    return `<span class="missing-list">${missing.map(escapeHtml).join('<br>')}</span>`;
+}
+
+// ---------- تصدير الموظفين مع بصماتهم ----------
+async function exportEmployees() {
+    const deviceId = document.getElementById('emp-export-device').value;
+    if (!deviceId) { showToast('اختر الجهاز أولاً', 'error'); return; }
+    if (!(await warnIfOffline(deviceId))) return;
+
+    const scope = await showScopeDialog('تصدير الموظفين', 'متابعة التصدير');
+    if (!scope) return;
+
+    const payload = {device_id: deviceId};
+    if (scope.mode === 'some') payload.numbers = scope.numbers;
+
+    const btn = document.getElementById('emp-export-btn');
+    setBtnBusy(btn, true, 'جارِ سحب الموظفين والبصمات... قد يستغرق دقيقة');
+    let res;
+    try {
+        res = await apiPost('/api/employees/export/prepare', payload);
+    } catch (e) {
+        res = {success: false, message: 'تعذّر الاتصال بخادم التطبيق'};
+    }
+    setBtnBusy(btn, false);
+
+    if (!res.success) {
+        if (res.missing && res.missing.length) {
+            await showConfirm('لم يُصدَّر شيء',
+                `لا يوجد أي من الأرقام التالية على الجهاز:${missingNumbersHtml(res.missing)}`);
+        } else {
+            showToast(res.message || 'تعذّر التصدير', 'error');
+        }
+        return;
+    }
+
+    // الملف جاهز في الخادم؛ لو في أرقام غير موجودة نعرضها ونطلب التأكيد قبل التنزيل
+    if (res.missing && res.missing.length) {
+        const ok = await showConfirm('أرقام غير موجودة على الجهاز',
+            `هذه الأرقام غير موجودة على الجهاز ولن تُصدَّر:${missingNumbersHtml(res.missing)}` +
+            `<br>سيُصدَّر ${res.employees_count} موظف و${res.fingers_count} بصمة. هل تتابع؟`);
+        if (!ok) return;
+    }
+    downloadPreparedFile(res.token, res.filename);
+    const fp = res.hardware && res.hardware.fp_version;
+    showToast(`تم تصدير ${res.employees_count} موظف و${res.fingers_count} بصمة` +
+        (fp ? ` (نسخة البصمة ${fp})` : ''), 'success');
+}
+
+// ---------- استيراد الموظفين من ملف ----------
+let empImportPollTimer = null;
+
+async function startEmployeesImport() {
+    const deviceId = document.getElementById('emp-import-device').value;
+    if (!deviceId) { showToast('اختر الجهاز أولاً', 'error'); return; }
+    const file = document.getElementById('emp-import-file').files[0];
+    if (!file) { showToast('اختر ملف التصدير أولاً', 'error'); return; }
+    if (!(await warnIfOffline(deviceId))) return;
+
+    let data;
+    try {
+        data = JSON.parse(await readFileAsText(file));
+    } catch (e) {
+        showToast('الملف غير صالح — اختر ملفًا صدّرته من هذا التطبيق', 'error');
+        return;
+    }
+    if (!data || data.format !== 'zkcontrol-employees' || !Array.isArray(data.employees)) {
+        showToast('هذا ليس ملف موظفين مُصدَّرًا من هذا التطبيق', 'error');
+        return;
+    }
+    if (!data.employees.length) { showToast('الملف لا يحتوي على موظفين', 'error'); return; }
+
+    const scope = await showScopeDialog('استيراد الموظفين', 'متابعة الاستيراد');
+    if (!scope) return;
+
+    let employees = data.employees;
+    let missing = [];
+    if (scope.mode === 'some') {
+        const inFile = new Map();
+        data.employees.forEach(e => {
+            const key = normalizeEmployeeNumber(e.user_id);
+            if (key && !inFile.has(key)) inFile.set(key, e);
+        });
+        employees = [];
+        scope.numbers.forEach(n => {
+            const e = inFile.get(normalizeEmployeeNumber(n));
+            if (e) employees.push(e); else missing.push(n);
+        });
+        if (!employees.length) {
+            await showConfirm('لم يُستورد شيء',
+                `لا يوجد أي من الأرقام التالية داخل الملف:${missingNumbersHtml(missing)}`);
+            return;
+        }
+    }
+
+    const overwrite = document.getElementById('emp-import-overwrite').checked;
+    const btn = document.getElementById('emp-import-btn');
+
+    setBtnBusy(btn, true, 'جارِ فحص الجهاز...');
+    const check = await apiPost('/api/employees/import/check', {
+        device_id: deviceId, numbers: employees.map(e => e.user_id),
+    });
+    setBtnBusy(btn, false);
+    if (!check.success) { showToast(check.message || 'تعذّر فحص الجهاز', 'error'); return; }
+
+    const total = employees.length;
+    const fingers = employees.reduce((n, e) => n + ((e.fingers || []).length), 0);
+    const existingCount = check.existing.length;
+    let msg = scope.mode === 'some'
+        ? `المختارون: ${total} موظف و${fingers} بصمة، من ملف جهاز (${escapeHtml(data.source_device || 'غير معروف')}).`
+        : `الملف فيه ${total} موظف و${fingers} بصمة، من جهاز (${escapeHtml(data.source_device || 'غير معروف')}).`;
+    if (missing.length) {
+        msg += `<br><br>هذه الأرقام غير موجودة داخل الملف ولن تُستورد:${missingNumbersHtml(missing)}`;
+    }
+    msg += '<br><br>';
+    msg += `سيُضاف ${total - existingCount} موظف جديد إلى (${escapeHtml(check.device_name)}).`;
+    if (existingCount) {
+        msg += overwrite
+            ? `<br>${existingCount} موظف موجودون بالفعل وستُكتب بياناتهم فوق الحالية.`
+            : `<br>${existingCount} موظف موجودون بالفعل وسيُتخطَّون دون تغيير.`;
+    }
+    msg += '<br><br>الوجوه لا تُنقل، فالموظف المسجّل بوجهه فقط يحتاج إعادة تسجيل وجهه.';
+
+    let skipFingers = document.getElementById('emp-import-skip-fingers').checked;
+    const sourceFp = (data.source_hardware || {}).fp_version;
+    const targetFp = (check.hardware || {}).fp_version;
+
+    // البصمة قالب مرتبط بنسخة خوارزمية الجهاز: جهاز بنسخة مختلفة يقبل
+    // الكتابة لكن لا يتعرّف على البصمة عند الاستخدام
+    if (!skipFingers && fingers > 0 && sourceFp && targetFp && sourceFp !== targetFp) {
+        const ok = await showConfirm('نسخة البصمة مختلفة',
+            `نسخة خوارزمية البصمة في الملف (${escapeHtml(sourceFp)}) تختلف عن نسخة الجهاز الهدف (${escapeHtml(targetFp)}).` +
+            `<br><br>البصمات ستُكتب لكنها على الأرجح لن تعمل عند البصم، وستحتاج تسجيلها يدويًا على الجهاز.` +
+            `<br><br>«تأكيد» يتابع بالبيانات فقط بدون بصمات، و«إلغاء» يوقف العملية.`,
+            {danger: true});
+        if (!ok) return;
+        skipFingers = true;
+    }
+
+    if (skipFingers && fingers > 0) {
+        msg += '<br><br>البصمات لن تُنقل في هذه العملية (البيانات فقط).';
+    }
+
+    const ok = await showConfirm('تأكيد الاستيراد', msg, {danger: overwrite && existingCount > 0});
+    if (!ok) return;
+
+    const start = await apiPost('/api/employees/import/start', {
+        device_id: deviceId, employees, overwrite, skip_fingers: skipFingers,
+    });
+    if (!start.success) { showToast(start.message || 'تعذّر بدء الاستيراد', 'error'); return; }
+
+    btn.disabled = true;
+    document.getElementById('emp-import-progress').style.display = 'block';
+    document.getElementById('emp-import-bar').style.width = '0%';
+    document.getElementById('emp-import-text').textContent = 'جارِ الاستيراد...';
+    clearTimeout(empImportPollTimer);
+    pollEmployeesImport(start.job_id);
+}
+
+async function pollEmployeesImport(jobId) {
+    let s;
+    try {
+        s = await apiGet('/api/employees/import/status/' + encodeURIComponent(jobId));
+    } catch (e) {
+        empImportPollTimer = setTimeout(() => pollEmployeesImport(jobId), 1500);
+        return;
+    }
+    const btn = document.getElementById('emp-import-btn');
+    const text = document.getElementById('emp-import-text');
+    if (!s.success) { btn.disabled = false; text.textContent = s.message; return; }
+
+    const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
+    document.getElementById('emp-import-bar').style.width = pct + '%';
+
+    if (s.status === 'running') {
+        text.textContent = `جارِ الاستيراد: ${s.done} من ${s.total}`;
+        empImportPollTimer = setTimeout(() => pollEmployeesImport(jobId), 1000);
+        return;
+    }
+
+    btn.disabled = false;
+    if (s.status === 'error') {
+        text.innerHTML = `<span style="color:var(--danger)">${escapeHtml(s.message)}</span>`;
+        showToast('فشل الاستيراد', 'error');
+        return;
+    }
+
+    let html = `انتهى الاستيراد: أُضيف ${s.added}، حُدّث ${s.updated}، تُخطّي ${s.skipped}، ونُقلت ${s.fingers} بصمة.`;
+    if (s.failed.length) {
+        html += `<br><span style="color:var(--danger)">فشل ${s.failed.length}:</span><br>` +
+            s.failed.map(f => `رقم ${escapeHtml(f.user_id)}: ${escapeHtml(f.reason)}`).join('<br>');
+    }
+    text.innerHTML = html;
+    showToast('انتهى الاستيراد', s.failed.length ? 'error' : 'success');
+}
+
+// ---------- مطابقة أرقام الموظفين بملف إكسل ----------
+async function runExcelMatch() {
+    const deviceId = document.getElementById('emp-match-device').value;
+    if (!deviceId) { showToast('اختر الجهاز أولاً', 'error'); return; }
+    const file = document.getElementById('emp-match-file').files[0];
+    if (!file) { showToast('اختر ملف الإكسل أولاً', 'error'); return; }
+    if (!file.name.toLowerCase().endsWith('.xlsx')) {
+        showToast('الملف يجب أن يكون بصيغة xlsx — احفظه بهذه الصيغة من إكسل', 'error');
+        return;
+    }
+    if (!(await warnIfOffline(deviceId))) return;
+
+    const btn = document.getElementById('emp-match-btn');
+    const box = document.getElementById('emp-match-result');
+    box.textContent = '';
+    setBtnBusy(btn, true, 'جارِ المطابقة...');
+    let res;
+    try {
+        res = await apiPost('/api/employees/match/prepare', {
+            device_id: deviceId, filename: file.name, file_b64: await readFileAsBase64(file),
+        });
+    } catch (e) {
+        res = {success: false, message: 'تعذّر قراءة الملف'};
+    }
+    setBtnBusy(btn, false);
+
+    if (!res.success) { showToast(res.message || 'تعذّرت المطابقة', 'error'); return; }
+    downloadPreparedFile(res.token, res.filename);
+    box.innerHTML = `<b style="color:var(--success)">موجود ${res.found}</b>، ` +
+        `<b style="color:var(--danger)">غير موجود ${res.missing}</b>.` +
+        `<br>العمود المعتمد للأرقام: ${escapeHtml(res.column)}` +
+        (res.found === 0 ? '<br>لم يُطابَق أي رقم — راجع أن هذا هو عمود أرقام الموظفين فعلاً.' : '');
+    showToast('بدأ تنزيل ملف النتيجة', 'success');
+}
+
+// ==========================================================================
+// الأجهزة
+// ==========================================================================
+function renderDevicesList() {
+    const box = document.getElementById('devices-list');
+    if (!devicesCache.length) { box.innerHTML = '<p class="empty-hint">لا يوجد أي جهاز بعد</p>'; return; }
+
+    box.innerHTML = devicesCache.map(d => `
+        <div class="list-row ${d.active ? 'active-row' : ''}">
+            <div class="info">
+                <b>${d.name} ${d.active ? '✓' : ''}</b>
+                <span>${d.ip} · <span class="tag ${d.status}">${d.status === 'online' ? 'متصل' : 'غير متصل'}</span></span>
+            </div>
+            <div class="row-actions">
+                <button style="background:var(--border);color:var(--text)" onclick="showDeviceHardware('${d.id}')">معلومات</button>
+                ${!d.active ? `<button style="background:var(--success);color:#fff" onclick="activateDevice('${d.id}')">تفعيل</button>` : ''}
+                <button style="background:var(--danger);color:#fff" onclick="confirmDeleteDevice('${d.id}')">حذف</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+/** معلومات الجهاز المهمة للتوافق - أهمها نسخة خوارزمية البصمة: البصمة
+ * المنقولة من جهاز لا تعمل على جهاز بنسخة مختلفة. */
+async function showDeviceHardware(deviceId) {
+    const d = devicesCache.find(x => x.id === deviceId);
+    if (d && d.status === 'offline') { showToast('الجهاز غير متصل حاليًا', 'error'); return; }
+
+    showToast('جارِ قراءة معلومات الجهاز...', '');
+    const info = await apiGet('/api/devices/' + encodeURIComponent(deviceId) + '/hardware');
+    if (!info.success) { showToast(info.message || 'تعذّرت قراءة المعلومات', 'error'); return; }
+
+    const line = (label, value) => `${label}: ${value ? escapeHtml(value) : 'غير متاح'}`;
+    await showConfirm(escapeHtml(info.device_name_saved || 'معلومات الجهاز'), [
+        line('نسخة خوارزمية البصمة', info.fp_version),
+        line('الطراز', info.device_name),
+        line('المنصّة', info.platform),
+        line('النسخة البرمجية', info.firmware),
+        line('الرقم التسلسلي', info.serial),
+        '',
+        'نقل البصمات بين جهازين يتطلب تطابق نسخة خوارزمية البصمة.',
+    ].join('<br>'));
+}
+
+async function activateDevice(id) {
+    await apiPost('/api/devices/' + id + '/activate');
+    await loadDevices();
+    renderDevicesList();
+    showToast('تم تفعيل الجهاز', 'success');
+}
+
+async function confirmDeleteDevice(id) {
+    const device = devicesCache.find(d => d.id === id);
+    const ok = await showConfirm('حذف الجهاز', `هل تريد حذف (${device.name}) من قائمة الأجهزة؟ هذا لا يحذف بيانات الجهاز نفسه، فقط يزيله من التطبيق.`, {danger: true});
+    if (!ok) return;
+
+    const snapshot = {...device};
+    const res = await apiDelete('/api/devices/' + id);
+    if (!res.success) { showToast(res.message || 'تعذّر الحذف', 'error'); return; }
+
+    await loadDevices();
+    renderDevicesList();
+
+    showSnackbarUndo(`تم حذف (${snapshot.name})`, async () => {
+        await apiPost('/api/devices', {name: snapshot.name, ip: snapshot.ip, comm_key: snapshot.comm_key || 0});
+        await loadDevices();
+        renderDevicesList();
+        showToast('تم التراجع عن الحذف', 'success');
+    });
+}
+
+async function testNewDevice() {
+    const ip = document.getElementById('new-device-ip').value.trim();
+    const resultEl = document.getElementById('new-device-test-result');
+    if (!ip) { resultEl.textContent = 'أدخل عنوان IP أولاً'; return; }
+    resultEl.textContent = 'جارِ الاختبار...';
+    const res = await apiPost('/api/devices/test', {ip});
+    resultEl.innerHTML = res.reachable
+        ? '<span style="color:var(--success)">✓ الجهاز متصل ويستجيب</span>'
+        : '<span style="color:var(--danger)">✕ تعذّر الوصول لهذا العنوان</span>';
+}
+
+async function submitAddDevice() {
+    const name = document.getElementById('new-device-name').value.trim();
+    const ip = document.getElementById('new-device-ip').value.trim();
+    const commKeyRaw = document.getElementById('new-device-comm-key').value.trim();
+    const commKey = commKeyRaw ? parseInt(commKeyRaw, 10) || 0 : 0;
+    if (!name || !ip) { showToast('أدخل الاسم وعنوان IP', 'error'); return; }
+
+    const res = await apiPost('/api/devices', {name, ip, comm_key: commKey});
+    if (res.success) {
+        document.getElementById('new-device-name').value = '';
+        document.getElementById('new-device-ip').value = '';
+        document.getElementById('new-device-comm-key').value = '';
+        document.getElementById('new-device-test-result').textContent = '';
+        await loadDevices();
+        renderDevicesList();
+        showToast('تمت إضافة الجهاز بنجاح', 'success');
+    } else {
+        showToast(res.message || 'تعذّرت الإضافة', 'error');
+    }
+}
+
+// ==========================================================================
+// سجل العمليات
+// ==========================================================================
+async function loadHistory() {
+    const res = await apiGet('/api/history');
+    const box = document.getElementById('history-list');
+    box.innerHTML = res.history.length
+        ? res.history.map(l => `<div class="result-line">${l}</div>`).join('')
+        : '<p class="empty-hint">لا يوجد أي عمليات مسجلة بعد</p>';
+}
+async function clearHistory() {
+    const ok = await showConfirm('مسح السجل', 'هل تريد مسح كل سجل العمليات؟', {danger: true});
+    if (!ok) return;
+    await apiPost('/api/history/clear');
+    loadHistory();
+    showToast('تم مسح السجل', 'success');
+}
+
+// ==========================================================================
+// الإشعارات
+// ==========================================================================
+async function loadNotifications() {
+    const res = await apiGet('/api/notifications');
+    const box = document.getElementById('notif-list');
+    box.innerHTML = res.notifications.length
+        ? res.notifications.map(n => `
+            <div class="notif-row">
+                <div class="ntitle">${n.message}</div>
+                <div class="nts">${n.ts}</div>
+            </div>`).join('')
+        : '<p class="empty-hint">لا يوجد إشعارات</p>';
+    updateNotifBadge(res.notifications);
+}
+function updateNotifBadge(notifications) {
+    const unread = notifications.filter(n => !n.read).length;
+    const badge = document.getElementById('notif-badge');
+    if (unread > 0) { badge.style.display = 'flex'; badge.textContent = unread; }
+    else { badge.style.display = 'none'; }
+}
+async function clearNotifications() {
+    await apiPost('/api/notifications/clear');
+    loadNotifications();
+}
+async function pollNotifBadge() {
+    const res = await apiGet('/api/notifications');
+    updateNotifBadge(res.notifications);
+}
+
+// ==========================================================================
+// الإعدادات
+// ==========================================================================
+async function loadSettings() {
+    const s = await apiGet('/api/settings');
+    document.getElementById('setting-dark').checked = s.dark_mode;
+    document.getElementById('setting-lock').checked = s.app_lock_enabled;
+    document.getElementById('setting-continuous-monitoring').checked = s.continuous_monitoring_enabled;
+}
+function onDarkToggle() {
+    const enabled = document.getElementById('setting-dark').checked;
+    applyDarkMode(enabled);
+    apiPost('/api/settings', {dark_mode: enabled});
+}
+function toggleDarkMode() {
+    const enabled = !document.documentElement.classList.contains('dark');
+    applyDarkMode(enabled);
+    apiPost('/api/settings', {dark_mode: enabled});
+    const chk = document.getElementById('setting-dark');
+    if (chk) chk.checked = enabled;
+}
+function applyDarkMode(enabled) {
+    document.documentElement.classList.toggle('dark', enabled);
+}
+function onLockToggle() {
+    const enabled = document.getElementById('setting-lock').checked;
+    apiPost('/api/settings', {app_lock_enabled: enabled});
+    if (window.AndroidBridge && window.AndroidBridge.setAppLockEnabled) {
+        window.AndroidBridge.setAppLockEnabled(enabled);
+    }
+    showToast(enabled ? 'تم تفعيل قفل التطبيق' : 'تم إيقاف قفل التطبيق', 'success');
+}
+async function onContinuousMonitoringToggle() {
+    const enabled = document.getElementById('setting-continuous-monitoring').checked;
+    await apiPost('/api/settings', {continuous_monitoring_enabled: enabled});
+    if (window.AndroidBridge && window.AndroidBridge.setContinuousMonitoringEnabled) {
+        window.AndroidBridge.setContinuousMonitoringEnabled(enabled);
+    }
+    if (window.AndroidBridge && window.AndroidBridge.requestNotificationPermission) {
+        window.AndroidBridge.requestNotificationPermission();
+    }
+    showToast(
+        enabled ? 'تم تفعيل وضع المراقبة المستمرة — سيظهر إشعار هادئ ثابت' : 'تم إيقاف وضع المراقبة المستمرة',
+        'success'
+    );
+}
+
+function spinCreditBadge() {
+    const badge = document.getElementById('credit-badge');
+    badge.classList.remove('spin');
+    void badge.offsetWidth; // إعادة تشغيل الحركة حتى لو الأنيميشن السابق لم ينتهِ
+    badge.classList.add('spin');
+}
+
+function openSupportEmail() {
+    location.href = 'mailto:Rasoolalka3bi91@gmail.com';
+}
+
+// ==========================================================================
+// بدء التشغيل
+// ==========================================================================
+async function init() {
+    const settings = await apiGet('/api/settings');
+    applyDarkMode(settings.dark_mode);
+
+    await loadDevices();
+    renderRoute();
+    pollNotifBadge();
+    setTimeout(spinCreditBadge, 500); // دورة واحدة تلقائية عند فتح التطبيق
+
+    // تحديث دوري خفيف لحالة الأجهزة كل 30 ثانية أثناء بقاء التطبيق مفتوحًا
+    setInterval(loadDevices, 30000);
+    setInterval(pollNotifBadge, 20000);
+}
+init();
+</script>
+</body>
+</html>

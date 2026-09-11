@@ -1,0 +1,57 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- خلفية بتدرج لوني احترافي -->
+    <path android:pathData="M0,0 H108 V108 H0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0" android:startY="0"
+                android:endX="108" android:endY="108"
+                android:startColor="#1a73e8"
+                android:endColor="#0d3f8f" />
+        </aapt:attr>
+    </path>
+
+    <!-- جسم جهاز البصمة (شكل رمزي مبسّط) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.14"
+        android:pathData="M22,28 L86,28 L96,74 L12,74 Z" />
+
+    <!-- ثلاث دوائر متحدة المركز (رمز البصمة) -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5.5"
+        android:fillColor="#00000000"
+        android:pathData="M32,50 A22,22 0 1,1 76,50 A22,22 0 1,1 32,50" />
+
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5.5"
+        android:fillColor="#00000000"
+        android:pathData="M39,50 A15,15 0 1,1 69,50 A15,15 0 1,1 39,50" />
+
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5.5"
+        android:fillColor="#00000000"
+        android:pathData="M46,50 A8,8 0 1,1 62,50 A8,8 0 1,1 46,50" />
+
+    <!-- شعار "IDC" أسفل الأيقونة -->
+    <!-- I -->
+    <path android:fillColor="#FFFFFF" android:pathData="M26,86 H32 V100 H26 Z" />
+    <!-- D -->
+    <path android:fillColor="#FFFFFF" android:pathData="M40,86 H50 A7,7 0 0 1 50,100 H40 Z" />
+    <!-- C -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:fillColor="#00000000"
+        android:pathData="M81,88 A7,7 0 1,0 81,98" />
+
+</vector>
