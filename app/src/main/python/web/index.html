@@ -587,6 +587,11 @@ button.btn:disabled { opacity: .55; }
                         <label class="switch"><input type="checkbox" id="emp-import-skip-fingers"><span class="slider"></span></label>
                     </div>
                     <p class="card-note">مفيد حين يرفض الجهاز الهدف بصمات جهاز آخر، أو حين تريد نقل الأسماء والأرقام فقط.</p>
+                    <div class="switch-row" style="margin-top:12px;">
+                        <span>إعادة تشغيل الجهاز بعد الاستيراد</span>
+                        <label class="switch"><input type="checkbox" id="emp-import-restart"><span class="slider"></span></label>
+                    </div>
+                    <p class="card-note">بعض الطرازات لا تتعرّف على البصمات الجديدة إلا بعد إعادة التشغيل. الجهاز يعود للعمل خلال دقيقة تقريبًا.</p>
                     <button class="btn success" id="emp-import-btn" onclick="startEmployeesImport()">استيراد إلى الجهاز</button>
                     <div id="emp-import-progress" style="display:none">
                         <div class="progress-track"><div class="progress-fill" id="emp-import-bar"></div></div>
@@ -1640,6 +1645,7 @@ async function startEmployeesImport() {
 
     const start = await apiPost('/api/employees/import/start', {
         device_id: deviceId, employees, overwrite, skip_fingers: skipFingers,
+        restart_device: document.getElementById('emp-import-restart').checked,
     });
     if (!start.success) { showToast(start.message || 'تعذّر بدء الاستيراد', 'error'); return; }
 
@@ -1679,13 +1685,27 @@ async function pollEmployeesImport(jobId) {
         return;
     }
 
-    let html = `انتهى الاستيراد: أُضيف ${s.added}، حُدّث ${s.updated}، تُخطّي ${s.skipped}، ونُقلت ${s.fingers} بصمة.`;
+    let html = `انتهى الاستيراد: أُضيف ${s.added}، حُدّث ${s.updated}، تُخطّي ${s.skipped}.`;
+    if (s.fingers_sent) {
+        // العدد المؤكَّد مقروء من الجهاز بعد الكتابة، لا مجرد "أُرسل بنجاح"
+        const allOk = s.fingers === s.fingers_sent;
+        html += `<br>البصمات: تأكّد حفظ <b style="color:var(${allOk ? '--success' : '--danger'})">` +
+            `${s.fingers} من ${s.fingers_sent}</b> على الجهاز.`;
+    }
+    if (s.protocol) html += `<br><span style="color:var(--text-dim)">الاتصال: ${escapeHtml(s.protocol)}</span>`;
+    if (s.restarted) html += '<br>أُعيد تشغيل الجهاز — انتظر دقيقة قبل تجربة البصم.';
+    else if (s.restart_error) html += `<br><span style="color:var(--danger)">تعذّرت إعادة التشغيل: ${escapeHtml(s.restart_error)}</span>`;
+    if (s.finger_failed && s.finger_failed.length) {
+        html += `<br><span style="color:var(--danger)">بصمات لم تُحفظ:</span><br>` +
+            s.finger_failed.map(f => `رقم ${escapeHtml(f.user_id)}: ${escapeHtml(f.reason)}`).join('<br>');
+    }
     if (s.failed.length) {
         html += `<br><span style="color:var(--danger)">فشل ${s.failed.length}:</span><br>` +
             s.failed.map(f => `رقم ${escapeHtml(f.user_id)}: ${escapeHtml(f.reason)}`).join('<br>');
     }
     text.innerHTML = html;
-    showToast('انتهى الاستيراد', s.failed.length ? 'error' : 'success');
+    const hadProblem = s.failed.length || (s.finger_failed && s.finger_failed.length);
+    showToast('انتهى الاستيراد', hadProblem ? 'error' : 'success');
 }
 
 // ---------- مطابقة أرقام الموظفين بملف إكسل ----------
