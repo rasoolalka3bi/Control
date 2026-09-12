@@ -1739,6 +1739,7 @@ async function runExcelMatch() {
     box.innerHTML = `<b style="color:var(--success)">موجود ${res.found}</b>، ` +
         `<b style="color:var(--danger)">غير موجود ${res.missing}</b>.` +
         `<br>العمود المعتمد للأرقام: ${escapeHtml(res.column)}` +
+        `<br><span style="color:var(--text-dim)">قُرئ ${res.device_total} موظفًا من الجهاز (${escapeHtml(res.protocol || '—')})</span>` +
         (res.found === 0 ? '<br>لم يُطابَق أي رقم — راجع أن هذا هو عمود أرقام الموظفين فعلاً.' : '');
     showToast('بدأ تنزيل ملف النتيجة', 'success');
 }
