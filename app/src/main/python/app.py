@@ -542,12 +542,14 @@ def _zk_for(device, force_udp=True, timeout=None):
               password=int(device.get("comm_key", 0) or 0), force_udp=force_udp, ommit_ping=True)
 
 
-def connect_for_writing(device):
-    """اتصال مخصص لعمليات الكتابة (الاستيراد): TCP أولًا ثم UDP احتياطًا.
+def connect_reliable(device):
+    """اتصال موثوق لعمليات الموظفين (قراءة القائمة والكتابة): TCP أولًا ثم
+    UDP احتياطًا.
 
-    قالب البصمة حزمة كبيرة نسبيًا؛ وUDP لا يضمن وصولها ولا يُبلّغ عن ضياعها،
-    فتنتهي العملية "بنجاح" بينما الجهاز لم يستلم القالب (أو استلم جزءًا منه
-    فيُسجَّل قالب لا يطابق أحدًا). TCP يضمن الوصول كاملًا أو يعطي خطأ صريحًا.
+    قائمة الموظفين وقوالب البصمات بيانات كبيرة؛ وUDP لا يضمن وصولها ولا
+    يُبلّغ عن ضياع جزء منها، فتصل القائمة مبتورة بصمت (فيظهر موظف مسجّل
+    كأنه غير موجود، وتختلف النتيجة بين محاولة وأخرى)، أو يصل قالب ناقص
+    يُسجَّل ولا يطابق صاحبه. TCP يضمن الوصول كاملًا أو يعطي خطأ صريحًا.
     يرجع (الاتصال، اسم البروتوكول المستخدم)."""
     last_error = None
     for use_udp in (False, True):
@@ -559,15 +561,31 @@ def connect_for_writing(device):
     raise last_error
 
 
-def normalize_employee_number(value):
-    """يوحّد شكل رقم الموظف للمقارنة فقط (لا يُستخدم للحفظ أبدًا): يحذف كل
-    المسافات، ويحوّل الحروف اللاتينية لحالة كبيرة، ويحذف الأصفار البادئة من
-    الأرقام الخالصة (لأن إكسل يحوّل 066 إلى 66 تلقائيًا)."""
+# الأرقام العربية-الهندية (٠-٩ والفارسية ۰-۹) تُكتب كثيرًا في ملفات الإكسل
+# العربية، وهي محارف مختلفة تمامًا عن 0-9 فلا تتطابق معها إطلاقًا
+_ARABIC_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789")
+# محارف اتجاه وتنسيق خفية يدسّها إكسل داخل الخلايا العربية - غير مرئية
+# لكنها تكسر المقارنة، وليست مسافات فلا يحذفها \s
+_INVISIBLE_CHARS = dict.fromkeys(
+    [0x200B, 0x200C, 0x200D, 0x200E, 0x200F, 0x202A, 0x202B, 0x202C,
+     0x202D, 0x202E, 0x2066, 0x2067, 0x2068, 0x2069, 0xFEFF], None)
+
+
+def clean_cell_text(value):
+    """نص الخلية بعد تحويل الأرقام العربية-الهندية وحذف المحارف الخفية."""
     if value is None:
         return ""
     if isinstance(value, float) and value.is_integer():
         value = int(value)
-    s = re.sub(r"\s+", "", str(value)).upper()
+    return str(value).translate(_INVISIBLE_CHARS).translate(_ARABIC_DIGITS).strip()
+
+
+def normalize_employee_number(value):
+    """يوحّد شكل رقم الموظف للمقارنة فقط (لا يُستخدم للحفظ أبدًا): يحذف كل
+    المسافات والمحارف الخفية، ويحوّل الأرقام العربية-الهندية إلى إنجليزية،
+    والحروف اللاتينية لحالة كبيرة، ويحذف الأصفار البادئة من الأرقام الخالصة
+    (لأن إكسل يحوّل 066 إلى 66 تلقائيًا)."""
+    s = re.sub(r"\s+", "", clean_cell_text(value)).upper()
     if s.isdigit():
         s = s.lstrip("0") or "0"
     return s
@@ -704,13 +722,19 @@ def api_employees_list():
         with get_device_lock(device["ip"]):
             conn = None
             try:
-                conn = _zk_for(device).connect()
-                users = conn.get_users()
+                conn, protocol = connect_reliable(device)
+                users, declared, complete = fetch_users_verified(conn)
             finally:
                 if conn:
                     conn.disconnect()
     except Exception as e:
         return jsonify({"success": False, "message": f"تعذّر الاتصال: {e}"}), 500
+
+    if not complete:
+        return jsonify({
+            "success": False,
+            "message": f"قائمة الموظفين وصلت ناقصة من الجهاز ({len(users)} من {declared}) — أعد المحاولة",
+        }), 500
 
     result = []
     for u in users:
@@ -719,7 +743,8 @@ def api_employees_list():
             continue
         result.append({"user_id": number, "uid": u.uid, "name": u.name or "", "privilege": u.privilege})
 
-    return jsonify({"success": True, "employees": result, "count": len(result)})
+    return jsonify({"success": True, "employees": result, "count": len(result),
+                    "device_total": declared, "protocol": protocol})
 
 
 @app.route('/api/employees', methods=['POST'])
@@ -742,8 +767,10 @@ def api_employees_add():
         with get_device_lock(device["ip"]):
             conn = None
             try:
-                conn = _zk_for(device).connect()
-                users = conn.get_users()
+                conn, _protocol = connect_reliable(device)
+                users, declared, complete = fetch_users_verified(conn)
+                if not complete:
+                    raise IOError(f"قائمة الموظفين وصلت ناقصة ({len(users)} من {declared}) — أعد المحاولة")
                 existing = find_by_employee_number(users, number)
 
                 if existing and not confirm_overwrite:
@@ -811,8 +838,10 @@ def api_employees_export_prepare():
         with get_device_lock(device["ip"]):
             conn = None
             try:
-                conn = _zk_for(device).connect()
-                users = conn.get_users()
+                conn, _protocol = connect_reliable(device)
+                users, declared, complete = fetch_users_verified(conn)
+                if not complete:
+                    raise IOError(f"قائمة الموظفين وصلت ناقصة ({len(users)} من {declared}) — أعد المحاولة")
                 templates = conn.get_templates()
                 hardware = read_device_hardware(conn)
             finally:
@@ -910,8 +939,10 @@ def api_employees_import_check():
         with get_device_lock(device["ip"]):
             conn = None
             try:
-                conn = _zk_for(device).connect()
-                users = conn.get_users()
+                conn, _protocol = connect_reliable(device)
+                users, declared, complete = fetch_users_verified(conn)
+                if not complete:
+                    raise IOError(f"قائمة الموظفين وصلت ناقصة ({len(users)} من {declared}) — أعد المحاولة")
                 hardware = read_device_hardware(conn)
             finally:
                 if conn:
@@ -939,6 +970,29 @@ def _fingers_from_export(uid, exported):
             continue
         fingers.append(Finger(uid, int(f.get("fid", 0)), int(f.get("valid", 1)), bytes.fromhex(tpl)))
     return fingers
+
+
+def fetch_users_verified(conn, attempts=3):
+    """يقرأ قائمة الموظفين ويتحقق من اكتمالها قبل الاعتماد عليها.
+
+    الجهاز يعلن عدد موظفيه المسجّلين، فنقارنه بما وصلنا فعلًا ونعيد القراءة
+    عند النقص. بدون هذا الفحص تمر القائمة المبتورة بلا أي إشارة، وتُبنى
+    عليها نتائج خاطئة تبدو صحيحة.
+    يرجع (القائمة، العدد المعلَن، هل هي مكتملة)."""
+    users = []
+    declared = None
+    for attempt in range(attempts):
+        users = conn.get_users()
+        declared = getattr(conn, "users", None)
+        try:
+            declared = int(declared) if declared is not None else None
+        except (TypeError, ValueError):
+            declared = None
+        if declared is None or len(users) >= declared:
+            return users, declared, True
+        if attempt + 1 < attempts:
+            time.sleep(0.4)
+    return users, declared, False
 
 
 def _templates_on_device(conn, uid):
@@ -986,7 +1040,7 @@ def _run_import_job(job_id, device, employees, overwrite, skip_fingers=False, re
             conn = None
             device_disabled = False
             try:
-                conn, protocol = connect_for_writing(device)
+                conn, protocol = connect_reliable(device)
                 job["protocol"] = protocol
 
                 # أجهزة ZK قد تتجاهل الكتابة بصمت أثناء انشغالها باستقبال
@@ -997,7 +1051,11 @@ def _run_import_job(job_id, device, employees, overwrite, skip_fingers=False, re
                 except Exception:
                     pass
 
-                users = conn.get_users()
+                users, declared, complete = fetch_users_verified(conn)
+                if not complete:
+                    raise IOError(
+                        f"قائمة الموظفين وصلت ناقصة ({len(users)} من {declared}) — "
+                        "أُلغي الاستيراد تفاديًا لإنشاء موظفين مكررين")
                 index = index_by_employee_number(users)
                 next_uid = next_free_uid(users)
 
@@ -1141,17 +1199,13 @@ STATUS_HEADER = "الحالة على الجهاز"
 _NOT_NUMBER_HEADERS = ("هاتف", "موبايل", "جوال", "phone", "mobile", STATUS_HEADER)
 _ARABIC_LETTER_RE = re.compile(r"[\u0600-\u06FF]")
 _NUMBER_LIKE_RE = re.compile(r"^[A-Z0-9][A-Z0-9\-_/]*$")
-MAX_SCANNED_ROWS = 5000
+MAX_SCANNED_ROWS = 50000
 
 
 def looks_like_employee_number(value):
     """قيمة تصلح أن تكون رقم موظف: بلا مسافات ولا حروف عربية، وفيها رقم
     واحد على الأقل، وبطول معقول."""
-    if value is None:
-        return False
-    if isinstance(value, float) and value.is_integer():
-        value = int(value)
-    s = str(value).strip()
+    s = clean_cell_text(value)
     if not s or re.search(r"\s", s) or _ARABIC_LETTER_RE.search(s):
         return False
     if len(s.encode("utf-8")) > MAX_EMPLOYEE_NUMBER_BYTES:
@@ -1174,8 +1228,7 @@ def detect_number_column(ws, device_numbers):
     best = None
 
     for col in range(1, max_col + 1):
-        header = ws.cell(row=1, column=col).value
-        header_text = str(header).strip() if header is not None else ""
+        header_text = clean_cell_text(ws.cell(row=1, column=col).value)
         if header_text and any(x in header_text.lower() for x in _NOT_NUMBER_HEADERS):
             continue  # عمود هاتف أو عمود نتيجة مطابقة سابقة
 
@@ -1206,8 +1259,7 @@ def detect_number_column(ws, device_numbers):
         label = f"العمود {get_column_letter(col)}"
     else:
         header_row = 1
-        text = str(first_value).strip() if first_value is not None else ""
-        label = text or f"العمود {get_column_letter(col)}"
+        label = clean_cell_text(first_value) or f"العمود {get_column_letter(col)}"
     return col, header_row, label, matches
 
 
@@ -1224,7 +1276,9 @@ def api_employees_match_prepare():
 
     try:
         raw = base64.b64decode(data.get('file_b64') or '')
-        wb = load_workbook(io.BytesIO(raw))
+        # data_only: لو كان عمود الأرقام مسحوبًا بمعادلة، نريد النتيجة
+        # المعروضة لا نص المعادلة نفسه
+        wb = load_workbook(io.BytesIO(raw), data_only=True)
         ws = wb.worksheets[0]
     except Exception:
         return jsonify({"success": False, "message": "تعذّر قراءة الملف — تأكد أنه ملف إكسل بصيغة xlsx"}), 400
@@ -1233,14 +1287,23 @@ def api_employees_match_prepare():
         with get_device_lock(device["ip"]):
             conn = None
             try:
-                conn = _zk_for(device).connect()
-                users = conn.get_users()
+                conn, protocol = connect_reliable(device)
+                users, declared, complete = fetch_users_verified(conn)
             finally:
                 if conn:
                     conn.disconnect()
     except Exception as e:
         log_action(device["name"], "مطابقة إكسل", f"✕ فشل: {e}")
         return jsonify({"success": False, "message": f"تعذّر الاتصال: {e}"}), 500
+
+    # نتيجة مبنية على قائمة ناقصة تعني "غير موجود" لموظفين مسجّلين فعلًا -
+    # وهذا أسوأ من رسالة خطأ صريحة، لذا نوقف العملية هنا
+    if not complete:
+        log_action(device["name"], "مطابقة إكسل", f"✕ قائمة ناقصة ({len(users)} من {declared})")
+        return jsonify({
+            "success": False,
+            "message": f"قائمة الموظفين وصلت ناقصة من الجهاز ({len(users)} من {declared}) — أعد المحاولة",
+        }), 500
 
     device_numbers = {normalize_employee_number(u.user_id) for u in users if u.user_id}
 
@@ -1253,7 +1316,7 @@ def api_employees_match_prepare():
     if header_row:
         for c in range(1, (ws.max_column or 1) + 1):
             v = ws.cell(row=header_row, column=c).value
-            if v is not None and str(v).strip() == STATUS_HEADER:
+            if clean_cell_text(v) == STATUS_HEADER:
                 status_col = c
                 break
     if status_col is None:
@@ -1294,7 +1357,7 @@ def api_employees_match_prepare():
     return jsonify({
         "success": True, "token": token, "filename": filename,
         "found": found, "missing": missing, "column": header_text,
-        "has_header": bool(header_row),
+        "has_header": bool(header_row), "device_total": len(users), "protocol": protocol,
     })
 
 
